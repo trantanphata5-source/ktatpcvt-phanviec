@@ -205,6 +205,8 @@ function syncToSpreadsheet(data) {
 // ĐỒNG BỘ TAB "TÀI KHOẢN" (QUẢN TRỊ XEM MẬT KHẨU & TÀI KHOẢN)
 // ==============================================================================
 function getOrCreateAccountsSheet(ss) {
+  if (!ss) ss = getSpreadsheet();
+  if (!ss) return null;
   var sheet = ss.getSheetByName(ACCOUNTS_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(ACCOUNTS_SHEET_NAME);
@@ -214,6 +216,14 @@ function getOrCreateAccountsSheet(ss) {
 }
 
 function initAccountsSheet(sheet) {
+  // Tự động tìm hoặc tạo sheet nếu người dùng bấm Chạy trực tiếp hàm này trong Apps Script
+  if (!sheet) {
+    var ss = getSpreadsheet();
+    if (!ss) throw new Error('Không thể mở Google Sheet với ID: ' + SHEET_ID);
+    sheet = ss.getSheetByName(ACCOUNTS_SHEET_NAME);
+    if (!sheet) sheet = ss.insertSheet(ACCOUNTS_SHEET_NAME);
+  }
+
   var headers = ['STT', 'Mã nhân viên', 'Họ và tên', 'Tên đăng nhập', 'Mật khẩu', 'Vai trò', 'Tổ công tác', 'Chức danh', 'Thời gian cập nhật'];
   var rows = DEFAULT_ACCOUNTS.map(function(acc) {
     return [

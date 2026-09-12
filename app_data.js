@@ -406,7 +406,7 @@ window.INITIAL_APP_DATA = {
     {
       "name": "Trần Quốc Khương",
       "msnv": "012384",
-      "position": "Nhân viên Phương thức",
+      "position": "Kỹ sư Phương thức",
       "dept_short": "KTAT",
       "dept_full": "Phòng Kỹ thuật và An toàn",
       "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",

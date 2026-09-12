@@ -227,6 +227,7 @@
               if (e.is_reinforced) {
                 empMap[e.id].is_reinforced = e.is_reinforced;
                 empMap[e.id].reinforce_note = e.reinforce_note;
+                empMap[e.id].position = e.position;
               }
               if (!empMap[e.id].photo && e.photo) empMap[e.id].photo = e.photo;
             }
@@ -339,7 +340,13 @@
           const empMap = {};
           state.employees.forEach(e => { empMap[e.id] = e; });
           window.INITIAL_APP_DATA.employees.forEach(e => {
-            if (!empMap[e.id]) state.employees.push(e);
+            if (!empMap[e.id]) {
+              state.employees.push(e);
+            } else if (e.is_reinforced) {
+              empMap[e.id].is_reinforced = e.is_reinforced;
+              empMap[e.id].reinforce_note = e.reinforce_note;
+              empMap[e.id].position = e.position;
+            }
           });
         }
       }
@@ -689,7 +696,7 @@
         </div>
         <div class="employee-info">
           <div class="employee-name" title="${emp.name}">
-            ${emp.name}
+            <span>${emp.name}</span>
             ${emp.is_reinforced ? `<span class="badge-reinforced" title="${emp.reinforce_note || 'Nhân sự tăng cường từ Đội VHLĐ'}">⚡ Tăng cường</span>` : ''}
           </div>
           <div class="employee-role" title="${emp.position}">${emp.position}</div>

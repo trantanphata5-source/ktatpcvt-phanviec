@@ -49,7 +49,7 @@ const DEFAULT_ACCOUNTS = [
   // 3 nhân sự tăng cường từ Đội Vận hành lưới điện vào Tổ Kỹ thuật
   { stt: 19, empId: "emp_012106", name: "Phạm Chí Trung", username: "phạm chí trung", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Phương thức (Tăng cường Đội VHLĐ)" },
   { stt: 20, empId: "emp_012521", name: "Lê Thanh Tùng", username: "lê thanh tùng", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Phương thức (Tăng cường Đội VHLĐ)" },
-  { stt: 21, empId: "emp_012384", name: "Trần Quốc Khương", username: "trần quốc khương", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Nhân viên Phương thức (Tăng cường Đội VHLĐ)" }
+  { stt: 21, empId: "emp_012384", name: "Trần Quốc Khương", username: "trần quốc khương", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Phương thức (Tăng cường Đội VHLĐ)" }
 ];
 
 function getSpreadsheet() {

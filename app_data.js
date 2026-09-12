@@ -1,0 +1,402 @@
+﻿/**
+ * PHÒNG KỸ THUẬT VÀ AN TOÀN - PC VŨNG TÀU
+ * HỆ THỐNG QUẢN LÝ & PHÂN CÔNG CÔNG VIỆC
+ * Dữ liệu nhân sự, tài khoản, categories, tasks mẫu
+ */
+
+window.KTAT_AUTH_DATA = {
+  accounts: [
+    // === BAN LÃNH ĐẠO PHÒNG (role: leader) ===
+    { username: "nguyễn đức minh", password: "ndminh123", empId: "emp_012054", role: "leader" },
+    { username: "phan thế vinh", password: "ptvinh123", empId: "emp_012170", role: "leader" },
+    { username: "nguyễn huy", password: "nhuy123", empId: "emp_010333", role: "leader" },
+    // === TỔ KỸ THUẬT VÀ AN TOÀN (role: staff) ===
+    { username: "nguyễn đình hanh", password: "ndhanh123", empId: "emp_012554", role: "staff" },
+    { username: "đặng thiện hiếu", password: "dthieu123", empId: "emp_012528", role: "staff" },
+    { username: "vũ đại dương", password: "vdduong123", empId: "emp_012688", role: "staff" },
+    { username: "nguyễn anh hoàng", password: "nahoang123", empId: "emp_012500", role: "staff" },
+    { username: "nguyễn ngọc hùng", password: "nnhung123", empId: "emp_012697", role: "staff" },
+    { username: "nguyễn văn huy", password: "nvhuy123", empId: "emp_012665", role: "staff" },
+    { username: "lê ngọc tuấn nhật", password: "lntnhat123", empId: "emp_012350", role: "staff" },
+    { username: "võ hùng phi", password: "vhphi123", empId: "emp_012139", role: "staff" },
+    { username: "hồ hữu minh tâm", password: "hhmtam123", empId: "emp_012209", role: "staff" },
+    { username: "đỗ xuân vinh", password: "dxvinh123", empId: "emp_012323", role: "staff" },
+    { username: "trần tấn phát", password: "ttphat123", empId: "emp_010622", role: "staff" },
+    { username: "hồ đức phương", password: "hdphuong123", empId: "emp_010113", role: "staff" },
+    { username: "võ minh tâm", password: "vmtam123", empId: "emp_006110", role: "staff" },
+    // === TỔ CÔNG NGHỆ THÔNG TIN (role: staff) ===
+    { username: "vũ thị linh chi", password: "vtlchi123", empId: "emp_012763", role: "staff" },
+    { username: "nguyễn hồng ngân", password: "nhngan123", empId: "emp_012317", role: "staff" }
+  ]
+};
+
+window.INITIAL_APP_DATA = {
+  "categories": [
+    {
+      "id": "cat_scl_2026",
+      "code": "I",
+      "title": "I. Công tác Sửa chữa lớn 2026",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#2563eb",
+      "bg_color": "#eff6ff",
+      "border_color": "#bfdbfe"
+    },
+    {
+      "id": "cat_scl_2027",
+      "code": "II",
+      "title": "II. Công tác Sửa chữa lớn 2027",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#059669",
+      "bg_color": "#ecfdf5",
+      "border_color": "#a7f3d0"
+    },
+    {
+      "id": "cat_dtxd_2026",
+      "code": "III",
+      "title": "III. Công tác ĐTXD 2026",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#7c3aed",
+      "bg_color": "#f5f3ff",
+      "border_color": "#ddd6fe"
+    },
+    {
+      "id": "cat_dtxd_2027",
+      "code": "IV",
+      "title": "IV. Công tác ĐTXD 2027",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#9333ea",
+      "bg_color": "#faf5ff",
+      "border_color": "#f3e8ff"
+    },
+    {
+      "id": "cat_dtxd_2028",
+      "code": "V",
+      "title": "V. Công tác ĐTXD 2028",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#6d28d9",
+      "bg_color": "#ede9fe",
+      "border_color": "#c4b5fd"
+    },
+    {
+      "id": "cat_knkh",
+      "code": "VI",
+      "title": "VI. Xử lý khiếu nại khách hàng",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#dc2626",
+      "bg_color": "#fef2f2",
+      "border_color": "#fecaca"
+    },
+    {
+      "id": "cat_atld",
+      "code": "VII",
+      "title": "VII. Công tác An toàn lao động",
+      "section": "A. Công tác Tổ Kỹ thuật",
+      "color": "#d97706",
+      "bg_color": "#fffbeb",
+      "border_color": "#fde68a"
+    },
+    {
+      "id": "cat_gis",
+      "code": "VIII",
+      "title": "VIII. Biên tập GIS",
+      "section": "B. Công tác Tổ CNTT",
+      "color": "#0891b2",
+      "bg_color": "#ecfeff",
+      "border_color": "#a5f3fc"
+    },
+    {
+      "id": "cat_pmis",
+      "code": "IX",
+      "title": "IX. Hệ thống PMIS",
+      "section": "B. Công tác Tổ CNTT",
+      "color": "#0d9488",
+      "bg_color": "#f0fdfa",
+      "border_color": "#99f6e4"
+    },
+    {
+      "id": "cat_cntt",
+      "code": "X",
+      "title": "X. Công tác CNTT chung",
+      "section": "B. Công tác Tổ CNTT",
+      "color": "#4f46e5",
+      "bg_color": "#eef2ff",
+      "border_color": "#c7d2fe"
+    }
+  ],
+
+  "employees": [
+    {
+      "name": "Nguyễn Đức Minh",
+      "msnv": "012054",
+      "position": "Trưởng phòng Kỹ thuật An toàn",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Phòng Kỹ thuật và An toàn",
+      "phone": "0962500579",
+      "email": "Minh3ND@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1i7kBgVIPGhyO_DDslPE5qsIn_36nlFFm&sz=w500",
+      "id": "emp_012054",
+      "short_name": "Minh",
+      "team": "BLĐ",
+      "team_name": "Ban Lãnh đạo Phòng"
+    },
+    {
+      "name": "Phan Thế Vinh",
+      "msnv": "012170",
+      "position": "Phó trưởng phòng Kỹ thuật An toàn",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Phòng Kỹ thuật và An toàn",
+      "phone": "0963635678",
+      "email": "Vinh2PT@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1ttX9G-tPTDh-B4J-o2Gx3giZy-ftFB-L&sz=w500",
+      "id": "emp_012170",
+      "short_name": "Vinh",
+      "team": "BLĐ",
+      "team_name": "Ban Lãnh đạo Phòng"
+    },
+    {
+      "name": "Nguyễn Huy",
+      "msnv": "010333",
+      "position": "Phó phòng Kỹ thuật An toàn",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Công nghệ thông tin - Phòng Kỹ thuật và An toàn",
+      "phone": "0968922744",
+      "email": "HuyN@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1Z3gzvA0-zRnjYKQ_dzrafnNI-TjLGuh3&sz=w500",
+      "id": "emp_010333",
+      "short_name": "Huy",
+      "team": "BLĐ",
+      "team_name": "Ban Lãnh đạo Phòng"
+    },
+    {
+      "name": "Nguyễn Đình Hanh",
+      "msnv": "012554",
+      "position": "Tổ trưởng Tổ Kỹ thuật",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0907567579",
+      "email": "HanhND@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1nN1nbIMnkj8TyQx0GzhP3DXZoQm8XNet&sz=w500",
+      "id": "emp_012554",
+      "short_name": "Hanh",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Đặng Thiện Hiếu",
+      "msnv": "012528",
+      "position": "Tổ phó Tổ Kỹ thuật",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0908064117",
+      "email": "Hieu5DT@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1nEKdJA35YiKRXWpWR2_rK6KbWDEKTRWj&sz=w500",
+      "id": "emp_012528",
+      "short_name": "Hiếu",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Vũ Đại Dương",
+      "msnv": "012688",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Công nghệ thông tin - Phòng Kỹ thuật và An toàn",
+      "phone": "0978877031",
+      "email": "DuongVD@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=18U77uRVPlnhG67-vQ37jBqbTJDnsiMkH&sz=w500",
+      "id": "emp_012688",
+      "short_name": "Dương",
+      "team": "TCNTT",
+      "team_name": "Tổ CNTT"
+    },
+    {
+      "name": "Nguyễn Anh Hoàng",
+      "msnv": "012500",
+      "position": "Kỹ sư An toàn",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0988932860",
+      "email": "HoangNA@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1OlDIDCNE5Iz9dT7FIwF1TcLeJjRXKzI2&sz=w500",
+      "id": "emp_012500",
+      "short_name": "Hoàng",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Nguyễn Ngọc Hùng",
+      "msnv": "012697",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0908736226",
+      "email": "Hung4NN@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1erCgwVP67mYaQNLKl7geDPkUiufr9lZV&sz=w500",
+      "id": "emp_012697",
+      "short_name": "Hùng",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Nguyễn Văn Huy",
+      "msnv": "012665",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0911777350",
+      "email": "HuyNV@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1Rw5SiP67d8L8I4ZhYfWHx93MI2j2ydML&sz=w500",
+      "id": "emp_012665",
+      "short_name": "Huy NV",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Lê Ngọc Tuấn Nhật",
+      "msnv": "012350",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0966151262",
+      "email": "NhatLNT@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1dAHcHBWogII3hqvcSwpqanVnMwmes1IS&sz=w500",
+      "id": "emp_012350",
+      "short_name": "Nhật",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Võ Hùng Phi",
+      "msnv": "012139",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0966672372",
+      "email": "PhiVH@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1wHT_pMck2PZqgWSqlP-_ZdvnIipG6FYK&sz=w500",
+      "id": "emp_012139",
+      "short_name": "Phi",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Hồ Hữu Minh Tâm",
+      "msnv": "012209",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0963795079",
+      "email": "TamHHM@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1AairKzxC45DyM3rUJ3WDjDabBfN-DhGM&sz=w500",
+      "id": "emp_012209",
+      "short_name": "Tâm HHM",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Đỗ Xuân Vinh",
+      "msnv": "012323",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0903114811",
+      "email": "VinhDX@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1ULB7cA15UuY9fC8zDPZC9je9FfhXDPP-&sz=w500",
+      "id": "emp_012323",
+      "short_name": "Vinh ĐX",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Trần Tấn Phát",
+      "msnv": "010622",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Công nghệ thông tin - Phòng Kỹ thuật và An toàn",
+      "phone": "0798676231",
+      "email": "Phat4TT@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1AGPVdVBD9EcVZXIJK_qxM98fY7XnzcFQ&sz=w500",
+      "id": "emp_010622",
+      "short_name": "Phát",
+      "team": "TCNTT",
+      "team_name": "Tổ CNTT"
+    },
+    {
+      "name": "Hồ Đức Phương",
+      "msnv": "010113",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0964147434",
+      "email": "Phuong2HD@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1gIJlSVlQQeNxCwFfKgUABGIoSPgRxdoM&sz=w500",
+      "id": "emp_010113",
+      "short_name": "Phương",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Võ Minh Tâm",
+      "msnv": "006110",
+      "position": "Kỹ sư Kỹ thuật điện",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0908867798",
+      "email": "tamvm@hcmpc.com.vn",
+      "photo": "",
+      "id": "emp_006110",
+      "short_name": "Tâm VM",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Vũ Thị Linh Chi",
+      "msnv": "012763",
+      "position": "Chuyên viên Công nghệ thông tin",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Công nghệ thông tin - Phòng Kỹ thuật và An toàn",
+      "phone": "0818993811",
+      "email": "ChiVTL@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1shiv3oP5xWOQ9eczQDb3CqDvYRrjrFPa&sz=w500",
+      "id": "emp_012763",
+      "short_name": "Chi",
+      "team": "TCNTT",
+      "team_name": "Tổ CNTT"
+    },
+    {
+      "name": "Nguyễn Hồng Ngân",
+      "msnv": "012317",
+      "position": "Cán sự Công nghệ Thông tin",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Công nghệ thông tin - Phòng Kỹ thuật và An toàn",
+      "phone": "0969606051",
+      "email": "NganNH@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1DqTBWM6UhlZa6agB1pyjY4kUxb9XqGvB&sz=w500",
+      "id": "emp_012317",
+      "short_name": "Ngân",
+      "team": "TCNTT",
+      "team_name": "Tổ CNTT"
+    }
+  ],
+
+  "tasks": [
+  ]
+};

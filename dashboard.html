@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý Công việc - Phòng Kỹ thuật và An toàn | PC Vũng Tàu</title>
+  <meta name="description" content="Hệ thống quản lý, phân công và theo dõi công việc Phòng Kỹ thuật và An toàn - Công ty Điện lực Vũng Tàu (EVNHCMC)">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ====== APP HEADER ====== -->
+  <header class="app-header" id="appHeader">
+    <div class="header-top">
+      <div class="brand-section">
+        <div class="brand-titles">
+          <span class="brand-subtitle">CÔNG TY ĐIỆN LỰC VŨNG TÀU - EVNHCMC</span>
+          <h1 class="brand-main-title">
+            QUẢN LÝ CÔNG VIỆC PHÒNG KỸ THUẬT & AN TOÀN
+            <span class="brand-badge">2026</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- User Menu -->
+      <div class="user-menu" id="userMenu">
+        <div id="userAvatarSlot"></div>
+        <div class="user-info-small">
+          <span class="user-name-small" id="userNameLabel">---</span>
+          <span class="user-role-small" id="userRoleLabel">---</span>
+        </div>
+        <button class="btn btn-outline btn-sm" id="changePasswordBtn" title="Đổi mật khẩu">🔑</button>
+        <button class="logout-btn" id="logoutBtn" title="Đăng xuất">🚪 Thoát</button>
+      </div>
+    </div>
+
+    <!-- Actions Row (separate line) -->
+    <div class="header-actions-row" id="headerActionsRow">
+      <div class="header-actions">
+        <!-- Search -->
+        <div class="search-box" id="searchBoxWrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="Tìm việc, người phụ trách..." autocomplete="off">
+          <span class="search-clear" id="searchClear" title="Xóa tìm kiếm">✕</span>
+        </div>
+
+        <!-- Sync Status -->
+        <button class="btn btn-sync" id="syncConfigBtn" title="Trạng thái đồng bộ">
+          <span class="sync-status-dot dot-synced" id="syncStatusDot"></span>
+          <span id="syncStatusLabel">Đã đồng bộ</span>
+        </button>
+
+        <!-- Leader-only buttons -->
+        <button class="btn btn-primary" id="createTaskBtn" title="Tạo công việc mới" style="display:none;">
+          <span>➕</span><span>Thêm việc mới</span>
+        </button>
+        <button class="btn btn-success" id="saveBtn" title="Lưu dữ liệu" style="display:none;">
+          <span>💾</span><span>Lưu dữ liệu</span>
+        </button>
+        <button class="btn btn-outline" id="exportBtn" title="Xuất Excel/CSV" style="display:none;">
+          <span>📥</span><span>Xuất dữ liệu</span>
+        </button>
+        <button class="btn btn-icon" id="resetBtn" title="Khôi phục dữ liệu gốc" style="display:none;">
+          <span>🔄</span>
+        </button>
+        <button class="btn btn-outline" id="toggleSidebarBtn" title="Đóng / Mở Danh sách chờ" style="display:none;">
+          <span>📑</span><span>DS Chờ</span>
+        </button>
+      </div>
+    </div>
+
+
+    <!-- Nav Tabs (leader only shows all tabs) -->
+    <div class="header-nav" id="headerNav">
+      <nav class="view-tabs" id="viewTabs">
+        <button class="tab-btn active" id="tabStaff">
+          <span>👥</span><span>Xem theo Nhân viên</span>
+        </button>
+        <button class="tab-btn" id="tabCategory">
+          <span>📋</span><span>Xem theo Công việc</span>
+        </button>
+        <button class="tab-btn" id="tabDashboard">
+          <span>📊</span><span>Tổng quan & Thống kê</span>
+        </button>
+      </nav>
+      <div class="quick-stats">
+        <div class="stat-pill" title="Tổng công việc">
+          <span class="stat-dot" style="background:#3b82f6;"></span>
+          <span>Tổng: <strong id="quickTotal">0</strong></span>
+        </div>
+        <div class="stat-pill" title="Đã giao">
+          <span class="stat-dot" style="background:#10b981;"></span>
+          <span>Đã giao: <strong id="quickAssigned">0</strong></span>
+        </div>
+        <div class="stat-pill" title="Đã xong">
+          <span class="stat-dot" style="background:#059669;"></span>
+          <span>Đã xong: <strong id="quickCompleted">0</strong></span>
+        </div>
+        <div class="stat-pill" title="Chờ giao">
+          <span class="stat-dot" style="background:#f59e0b;"></span>
+          <span>Chờ giao: <strong id="quickPending">0</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== MAIN CONTAINER ====== -->
+  <div class="app-container">
+    <main class="main-content" id="mainContent">
+      <!-- Injected by JS -->
+    </main>
+
+    <!-- STAGING SIDEBAR (leader only) -->
+    <aside class="staging-sidebar collapsed" id="stagingSidebar">
+      <div class="staging-header">
+        <div class="staging-title-wrap">
+          <h3 class="staging-title">DANH SÁCH CHỜ</h3>
+          <span class="staging-counter" id="stagingCounter">0</span>
+        </div>
+        <button class="btn btn-primary" id="sidebarCreateBtn" style="padding:4px 10px;font-size:12px;">+ Thêm mới</button>
+      </div>
+      <div class="staging-body">
+        <div class="staging-dropzone" id="stagingDropzone"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ====== TASK MODAL ====== -->
+  <div class="modal-backdrop" id="taskModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="taskModalTitle">➕ Thêm mới công việc</h3>
+        <button type="button" class="modal-close-btn" id="taskModalClose">&times;</button>
+      </div>
+      <form id="taskForm">
+        <div class="modal-body">
+          <input type="hidden" id="fieldTaskId">
+          <div class="form-group">
+            <label class="form-label" for="fieldTitle">Tên công việc <span class="required">*</span></label>
+            <input type="text" id="fieldTitle" class="form-control" placeholder="Nhập tóm tắt tên công việc..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fieldDetail">Chi tiết nội dung</label>
+            <textarea id="fieldDetail" class="form-control" rows="3" placeholder="Chi tiết các bước thực hiện..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fieldCategory">Nhóm công việc <span class="required">*</span></label>
+            <select id="fieldCategory" class="form-control" required></select>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="fieldAssignee">Cán bộ phụ trách</label>
+              <select id="fieldAssignee" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fieldFollower">Người theo dõi</label>
+              <select id="fieldFollower" class="form-control"></select>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="fieldDeadline">Thời hạn</label>
+              <input type="text" id="fieldDeadline" class="form-control" placeholder="VD: 14/09/2026">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="fieldStatus">Trạng thái</label>
+              <select id="fieldStatus" class="form-control">
+                <option value="in_progress">● Đang thực hiện</option>
+                <option value="completed">✓ Đã hoàn tất</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fieldPriority">Mức độ ưu tiên</label>
+            <select id="fieldPriority" class="form-control">
+              <option value="normal">Bình thường</option>
+              <option value="urgent">🔥 Khẩn cấp</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="deleteTaskBtn" style="margin-right:auto;color:#ef4444;border-color:#fecaca;display:none;">🗑️ Xóa</button>
+          <button type="button" class="btn btn-outline" id="taskModalCancel">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary" id="taskModalSubmit">💾 Lưu công việc</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ====== SYNC MODAL ====== -->
+  <div class="modal-backdrop" id="syncModal">
+    <div class="modal-dialog sync-modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">☁️ Trạng Thái Đồng Bộ</h3>
+        <button type="button" class="modal-close-btn" id="syncModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="sync-status-card" id="syncStatusCard">
+          <div class="sync-status-icon" id="syncStatusIcon">⚡</div>
+          <div class="sync-status-info">
+            <h4 id="syncStatusTitle">Hệ Thống Đồng Bộ</h4>
+            <p id="syncStatusDesc">Dữ liệu được đồng bộ thời gian thực.</p>
+          </div>
+        </div>
+        <div class="sync-info-box">
+          <div class="sync-info-row">
+            <span class="sync-info-label">🏢 Đơn vị:</span>
+            <span style="font-weight:600;color:#1e293b;">Phòng Kỹ thuật và An toàn - PC Vũng Tàu</span>
+          </div>
+          <div class="sync-info-row">
+            <span class="sync-info-label">🕒 Đồng bộ cuối:</span>
+            <span id="syncLastTime" style="font-weight:600;color:#1e293b;">Vừa xong</span>
+          </div>
+        </div>
+        <details style="margin-top:12px;">
+          <summary style="font-size:12px;color:#64748b;cursor:pointer;">⚙️ Cấu hình máy chủ nâng cao</summary>
+          <div class="form-group" style="margin-top:10px;">
+            <label class="form-label" for="fieldSyncUrl" style="font-size:12px;">Địa chỉ API:</label>
+            <input type="url" id="fieldSyncUrl" class="form-control" style="font-size:12px;" placeholder="https://script.google.com/macros/s/.../exec">
+          </div>
+        </details>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="btnSyncNow">🔄 Làm mới</button>
+        <button type="button" class="btn btn-primary" id="btnSaveSyncConfig">💾 Lưu & Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== CHANGE PASSWORD MODAL ====== -->
+  <div class="modal-backdrop" id="passwordModal">
+    <div class="modal-dialog" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Đổi mật khẩu</h3>
+        <button type="button" class="modal-close-btn" id="passwordModalClose">&times;</button>
+      </div>
+      <form id="passwordForm">
+        <div class="modal-body">
+          <div id="passwordError" class="login-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;"></div>
+          <div class="form-group">
+            <label class="form-label" for="currentPassword">Mật khẩu hiện tại <span class="required">*</span></label>
+            <input type="password" id="currentPassword" class="form-control" placeholder="Nhập mật khẩu hiện tại" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newPassword">Mật khẩu mới <span class="required">*</span></label>
+            <input type="password" id="newPassword" class="form-control" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confirmPassword">Xác nhận mật khẩu mới <span class="required">*</span></label>
+            <input type="password" id="confirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="passwordModalCancel">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary">🔒 Đổi mật khẩu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

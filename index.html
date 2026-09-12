@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đăng nhập - Quản lý Công việc Phòng KTAT | PC Vũng Tàu</title>
+  <meta name="description" content="Hệ thống quản lý và phân công công việc Phòng Kỹ thuật và An toàn - Công ty Điện lực Vũng Tàu (EVNHCMC)">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page login-page-light">
+
+  <div class="login-container">
+    <div class="login-card">
+      <!-- Brand -->
+      <div class="login-brand">
+        <img src="logo.png" alt="EVNHCMC" class="login-brand-logo-img">
+        <div class="login-brand-subtitle">Công ty Điện lực Vũng Tàu</div>
+        <h1 class="login-brand-title">
+          Quản lý Công việc<br>
+          <span>Phòng Kỹ thuật & An toàn</span>
+        </h1>
+      </div>
+
+
+      <!-- Login Form -->
+      <form id="loginForm" autocomplete="off">
+        <div id="loginError" class="login-error">
+          ⚠️ Tên đăng nhập hoặc mật khẩu không đúng!
+        </div>
+
+        <div class="login-form-group">
+          <label class="login-label" for="loginUsername">Tên đăng nhập</label>
+          <div class="login-input-wrap">
+            <input type="text" id="loginUsername" class="login-input" placeholder="Nhập tên đầy đủ (VD: trần tấn phát)" required>
+            <span class="login-input-icon">👤</span>
+          </div>
+        </div>
+
+        <div class="login-form-group">
+          <label class="login-label" for="loginPassword">Mật khẩu</label>
+          <div class="login-input-wrap">
+            <input type="password" id="loginPassword" class="login-input" placeholder="Nhập mật khẩu" required>
+            <span class="login-input-icon">🔒</span>
+          </div>
+        </div>
+
+        <label class="login-remember">
+          <input type="checkbox" id="loginRemember" checked>
+          <span>Ghi nhớ đăng nhập</span>
+        </label>
+
+        <button type="submit" class="login-btn" id="loginBtn">
+          🔐 Đăng nhập hệ thống
+        </button>
+      </form>
+
+      <!-- Footer -->
+      <div class="login-footer">
+        <p class="login-footer-text">
+          Phòng Kỹ thuật và An toàn — PC Vũng Tàu<br>
+          Hệ thống quản lý nội bộ © 2026
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app_data.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      const SESSION_KEY = 'KTAT_USER_SESSION';
+
+      // Check existing session
+      const saved = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        try {
+          const session = JSON.parse(saved);
+          if (session && session.empId) {
+            window.location.href = 'dashboard.html';
+            return;
+          }
+        } catch(e) {}
+      }
+
+      const form = document.getElementById('loginForm');
+      const errorBox = document.getElementById('loginError');
+      const usernameInput = document.getElementById('loginUsername');
+      const passwordInput = document.getElementById('loginPassword');
+      const rememberCheck = document.getElementById('loginRemember');
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        errorBox.style.display = 'none';
+
+        const username = usernameInput.value.trim().toLowerCase();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+          errorBox.textContent = '⚠️ Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!';
+          errorBox.style.display = 'block';
+          return;
+        }
+
+        const accounts = window.KTAT_AUTH_DATA ? window.KTAT_AUTH_DATA.accounts : [];
+        // Check custom passwords first (from password changes)
+        let customPasswords = {};
+        try { customPasswords = JSON.parse(localStorage.getItem('KTAT_CUSTOM_PASSWORDS') || '{}'); } catch(e) {}
+
+        // Find account by username
+        const accountByName = accounts.find(a => a.username === username);
+        if (!accountByName) {
+          errorBox.textContent = '⚠️ Tên đăng nhập hoặc mật khẩu không đúng!';
+          errorBox.style.display = 'block';
+          usernameInput.focus();
+          return;
+        }
+
+        // Check password: custom first, then default
+        const validPassword = customPasswords[accountByName.empId] || accountByName.password;
+        if (password !== validPassword) {
+          errorBox.textContent = '⚠️ Tên đăng nhập hoặc mật khẩu không đúng!';
+          errorBox.style.display = 'block';
+          usernameInput.focus();
+          return;
+        }
+
+        const account = accountByName;
+
+        // Save session
+        const session = {
+          empId: account.empId,
+          role: account.role,
+          username: account.username,
+          loginAt: new Date().toISOString()
+        };
+
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        if (rememberCheck.checked) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        }
+
+        // Navigate to dashboard
+        window.location.href = 'dashboard.html';
+      });
+    })();
+  </script>
+</body>
+</html>

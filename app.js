@@ -1,0 +1,1201 @@
+/**
+ * PHÒNG KỸ THUẬT VÀ AN TOÀN - PC VŨNG TÀU
+ * HỆ THỐNG QUẢN LÝ & PHÂN CÔNG CÔNG VIỆC
+ * Application Logic (Auth + Kanban + Employee Self-input)
+ */
+
+(function() {
+  'use strict';
+
+  const STORAGE_KEY = 'PCVT_KTAT_TASKS_DATA_V1';
+  const SYNC_URL_KEY = 'PCVT_KTAT_SYNC_URL';
+  const SESSION_KEY = 'KTAT_USER_SESSION';
+  const DEFAULT_CLOUD_API = 'https://script.google.com/macros/s/AKfycbwBk3G9iV75PzxgWYEz5mZyFVqbWFwqUjdTSYOOtEN8x4SazmeR7EJCZmxPdmSETs-Y4w/exec';
+
+  // =========================================================================
+  // AUTH & SESSION
+  // =========================================================================
+  function getSession() {
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch(e) { return null; }
+  }
+
+  const currentSession = getSession();
+  if (!currentSession || !currentSession.empId) {
+    window.location.href = 'index.html';
+    // stop execution
+    return;
+  }
+
+  const isLeader = currentSession.role === 'leader';
+  const currentEmpId = currentSession.empId;
+
+  // =========================================================================
+  // GLOBAL STATE
+  // =========================================================================
+  const state = {
+    categories: [],
+    employees: [],
+    tasks: [],
+    activeView: isLeader ? 'staff' : 'personal',
+    searchQuery: '',
+    draggedTaskId: null,
+    editingTaskId: null,
+    cloudApiUrl: DEFAULT_CLOUD_API,
+    syncStatus: 'synced',
+    lastSavedAt: null,
+    syncDebounceTimer: null,
+    hasUnsavedLocalChanges: false,
+    initialCloudSyncDone: false
+  };
+
+  // =========================================================================
+  // DOM ELEMENTS
+  // =========================================================================
+  const el = {
+    mainContent: document.getElementById('mainContent'),
+    stagingSidebar: document.getElementById('stagingSidebar'),
+    stagingDropzone: document.getElementById('stagingDropzone'),
+    stagingCounter: document.getElementById('stagingCounter'),
+    toggleSidebarBtn: document.getElementById('toggleSidebarBtn'),
+    searchInput: document.getElementById('searchInput'),
+    searchClear: document.getElementById('searchClear'),
+    searchBoxWrap: document.getElementById('searchBoxWrap'),
+    tabStaff: document.getElementById('tabStaff'),
+    tabCategory: document.getElementById('tabCategory'),
+    tabDashboard: document.getElementById('tabDashboard'),
+    headerNav: document.getElementById('headerNav'),
+    viewTabs: document.getElementById('viewTabs'),
+    quickTotal: document.getElementById('quickTotal'),
+    quickAssigned: document.getElementById('quickAssigned'),
+    quickCompleted: document.getElementById('quickCompleted'),
+    quickPending: document.getElementById('quickPending'),
+    saveBtn: document.getElementById('saveBtn'),
+    exportBtn: document.getElementById('exportBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    createTaskBtn: document.getElementById('createTaskBtn'),
+    sidebarCreateBtn: document.getElementById('sidebarCreateBtn'),
+    syncConfigBtn: document.getElementById('syncConfigBtn'),
+    syncStatusDot: document.getElementById('syncStatusDot'),
+    syncStatusLabel: document.getElementById('syncStatusLabel'),
+    syncModal: document.getElementById('syncModal'),
+    syncModalClose: document.getElementById('syncModalClose'),
+    syncStatusCard: document.getElementById('syncStatusCard'),
+    syncStatusIcon: document.getElementById('syncStatusIcon'),
+    syncStatusTitle: document.getElementById('syncStatusTitle'),
+    syncStatusDesc: document.getElementById('syncStatusDesc'),
+    syncLastTime: document.getElementById('syncLastTime'),
+    fieldSyncUrl: document.getElementById('fieldSyncUrl'),
+    btnSyncNow: document.getElementById('btnSyncNow'),
+    btnSaveSyncConfig: document.getElementById('btnSaveSyncConfig'),
+    taskModal: document.getElementById('taskModal'),
+    taskModalTitle: document.getElementById('taskModalTitle'),
+    taskForm: document.getElementById('taskForm'),
+    taskModalClose: document.getElementById('taskModalClose'),
+    taskModalCancel: document.getElementById('taskModalCancel'),
+    deleteTaskBtn: document.getElementById('deleteTaskBtn'),
+    fieldTaskId: document.getElementById('fieldTaskId'),
+    fieldTitle: document.getElementById('fieldTitle'),
+    fieldDetail: document.getElementById('fieldDetail'),
+    fieldCategory: document.getElementById('fieldCategory'),
+    fieldAssignee: document.getElementById('fieldAssignee'),
+    fieldFollower: document.getElementById('fieldFollower'),
+    fieldDeadline: document.getElementById('fieldDeadline'),
+    fieldStatus: document.getElementById('fieldStatus'),
+    fieldPriority: document.getElementById('fieldPriority'),
+    toastContainer: document.getElementById('toastContainer'),
+    userNameLabel: document.getElementById('userNameLabel'),
+    userRoleLabel: document.getElementById('userRoleLabel'),
+    userAvatarSlot: document.getElementById('userAvatarSlot'),
+    logoutBtn: document.getElementById('logoutBtn'),
+    changePasswordBtn: document.getElementById('changePasswordBtn'),
+    passwordModal: document.getElementById('passwordModal'),
+    passwordModalClose: document.getElementById('passwordModalClose'),
+    passwordModalCancel: document.getElementById('passwordModalCancel'),
+    passwordForm: document.getElementById('passwordForm'),
+    passwordError: document.getElementById('passwordError')
+  };
+
+  // =========================================================================
+  // INITIALIZATION
+  // =========================================================================
+  function init() {
+    state.cloudApiUrl = localStorage.getItem(SYNC_URL_KEY) || DEFAULT_CLOUD_API;
+
+    loadData();
+    setupUI();
+    setupEventListeners();
+    if (isLeader) populateFormSelects();
+    render();
+    updateQuickStats();
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+
+    if (state.cloudApiUrl) {
+      updateSyncUI('syncing', 'Đang kết nối...');
+      pullFromCloud(false);
+      setInterval(() => {
+        if (state.cloudApiUrl && !document.hidden && !state.hasUnsavedLocalChanges && !state.draggedTaskId && !state.editingTaskId) {
+          pullFromCloud(false);
+        }
+      }, 5000);
+    }
+  }
+
+  function setupUI() {
+    // Set user info in header
+    const emp = state.employees.find(e => e.id === currentEmpId);
+    if (emp) {
+      el.userNameLabel.textContent = emp.name;
+      el.userRoleLabel.textContent = isLeader ? '🔑 ' + emp.position : emp.position;
+      const photoUrl = emp.photo;
+      if (photoUrl) {
+        el.userAvatarSlot.innerHTML = `<img class="user-avatar-small" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="user-avatar-fallback-small" style="display:none;">${getInitials(emp.name)}</div>`;
+      } else {
+        el.userAvatarSlot.innerHTML = `<div class="user-avatar-fallback-small">${getInitials(emp.name)}</div>`;
+      }
+    }
+
+    if (isLeader) {
+      // Show leader-only UI
+      el.createTaskBtn.style.display = '';
+      el.saveBtn.style.display = '';
+      el.exportBtn.style.display = '';
+      el.resetBtn.style.display = '';
+      el.toggleSidebarBtn.style.display = '';
+      el.stagingSidebar.classList.remove('collapsed');
+    } else {
+      // Staff: hide leader controls, show personal view
+      el.headerNav.style.display = 'none';
+      el.searchBoxWrap.style.display = 'none';
+    }
+  }
+
+  function updateHeaderHeight() {
+    const header = document.querySelector('.app-header');
+    if (header) {
+      const h = header.getBoundingClientRect().height;
+      if (h > 0) document.documentElement.style.setProperty('--header-height', `${Math.round(h)}px`);
+    }
+  }
+
+  // =========================================================================
+  // DATA PERSISTENCE
+  // =========================================================================
+  function loadData() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        state.categories = parsed.categories || window.INITIAL_APP_DATA.categories;
+        state.employees = parsed.employees || window.INITIAL_APP_DATA.employees;
+        state.tasks = parsed.tasks || window.INITIAL_APP_DATA.tasks;
+        state.lastSavedAt = parsed.savedAt || 0;
+        state.hasUnsavedLocalChanges = false;
+        return;
+      } catch(e) { console.error('Parse error:', e); }
+    }
+    if (window.INITIAL_APP_DATA) {
+      state.categories = JSON.parse(JSON.stringify(window.INITIAL_APP_DATA.categories));
+      state.employees = JSON.parse(JSON.stringify(window.INITIAL_APP_DATA.employees));
+      state.tasks = JSON.parse(JSON.stringify(window.INITIAL_APP_DATA.tasks));
+      state.tasks.forEach(t => { if (t.deadline) t.deadline = formatFullDate(t.deadline); });
+      state.lastSavedAt = 0;
+      state.hasUnsavedLocalChanges = false;
+    }
+  }
+
+  function saveData(showToast = true, skipCloud = false) {
+    const timestamp = new Date().toISOString();
+    state.lastSavedAt = timestamp;
+    const payload = { categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: timestamp, lastModified: timestamp };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    if (showToast) notify('success', 'Đã lưu dữ liệu!');
+    if (state.cloudApiUrl && !skipCloud) {
+      state.hasUnsavedLocalChanges = true;
+      updateSyncUI('syncing', 'Đang lưu máy chủ...');
+      clearTimeout(state.syncDebounceTimer);
+      state.syncDebounceTimer = setTimeout(() => pushToCloud(payload), 400);
+    }
+  }
+
+  // =========================================================================
+  // CLOUD SYNC
+  // =========================================================================
+  function pushToCloud(payload) {
+    if (!state.cloudApiUrl) return;
+    const payloadStr = JSON.stringify(payload);
+    fetch(state.cloudApiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: payloadStr })
+      .then(() => { state.hasUnsavedLocalChanges = false; updateSyncUI('synced', 'Đã đồng bộ máy chủ'); })
+      .catch(() => {
+        fetch(state.cloudApiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: payloadStr })
+          .then(() => { state.hasUnsavedLocalChanges = false; updateSyncUI('synced', 'Đã đồng bộ'); })
+          .catch(() => updateSyncUI('local', 'Đã lưu máy'));
+      });
+  }
+
+  let jsonpCounter = 0;
+  function pullFromCloud(manual) {
+    if (!state.cloudApiUrl) { if (manual) notify('info', 'Chưa cấu hình máy chủ'); return; }
+    if (manual) updateSyncUI('syncing', 'Đang tải...');
+    fetch(`${state.cloudApiUrl}?_t=${Date.now()}`).then(r => r.json()).then(res => handleCloudResponse(res, manual))
+      .catch(() => pullViaJsonp(manual));
+  }
+
+  function pullViaJsonp(manual) {
+    const cb = 'ktat_cb_' + (++jsonpCounter) + '_' + Date.now();
+    const s = document.createElement('script');
+    const sep = state.cloudApiUrl.includes('?') ? '&' : '?';
+    s.src = `${state.cloudApiUrl}${sep}callback=${cb}&_t=${Date.now()}`;
+    let to = setTimeout(() => { cleanup(); if (manual) updateSyncUI('synced'); }, 12000);
+    function cleanup() { clearTimeout(to); delete window[cb]; if (s.parentNode) s.parentNode.removeChild(s); }
+    window[cb] = function(res) { cleanup(); handleCloudResponse(res, manual); };
+    s.onerror = function() { cleanup(); if (manual) notify('error', 'Lỗi kết nối'); };
+    document.head.appendChild(s);
+  }
+
+  function handleCloudResponse(response, manual) {
+    if (!response || response.status !== 'success' || !response.hasData || !response.data) {
+      state.initialCloudSyncDone = true;
+      if (manual) notify('info', 'Dữ liệu máy đã mới nhất');
+      updateSyncUI('synced'); return;
+    }
+    const rd = response.data;
+    if (!rd.tasks || !Array.isArray(rd.tasks) || rd.tasks.length === 0) { state.initialCloudSyncDone = true; return; }
+    const remoteTime = new Date(rd.lastModified || rd.savedAt || 0).getTime();
+    const localTime = state.lastSavedAt ? new Date(state.lastSavedAt).getTime() : 0;
+    const shouldApply = manual || (!state.initialCloudSyncDone && !state.hasUnsavedLocalChanges) || !state.lastSavedAt || state.lastSavedAt === 0 || (remoteTime > localTime && !state.hasUnsavedLocalChanges);
+    state.initialCloudSyncDone = true;
+    if (shouldApply) {
+      state.tasks = rd.tasks;
+      if (rd.categories) state.categories = rd.categories;
+      if (rd.employees) state.employees = rd.employees;
+      state.lastSavedAt = rd.lastModified || rd.savedAt || new Date().toISOString();
+      state.hasUnsavedLocalChanges = false;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: state.lastSavedAt }));
+      render(); updateQuickStats(); updateSyncUI('synced');
+      if (manual) notify('success', 'Đã cập nhật từ máy chủ!');
+    } else { updateSyncUI('synced'); }
+  }
+
+  function updateSyncUI(status, label) {
+    state.syncStatus = status;
+    const dot = el.syncStatusDot, lbl = el.syncStatusLabel;
+    if (!dot || !lbl) return;
+    dot.className = 'sync-status-dot';
+    if (status === 'synced') { dot.classList.add('dot-synced'); lbl.textContent = label || 'Đã đồng bộ'; }
+    else if (status === 'syncing') { dot.classList.add('dot-syncing'); lbl.textContent = label || 'Đang đồng bộ...'; }
+    else if (status === 'local') { dot.classList.add('dot-local'); lbl.textContent = label || 'Lưu cục bộ'; }
+  }
+
+  // =========================================================================
+  // EVENT LISTENERS
+  // =========================================================================
+  function setupEventListeners() {
+    // Logout
+    el.logoutBtn.addEventListener('click', () => {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      window.location.href = 'index.html';
+    });
+
+    // Change Password
+    el.changePasswordBtn.addEventListener('click', () => {
+      el.passwordModal.classList.add('active');
+      el.passwordError.style.display = 'none';
+      el.passwordForm.reset();
+    });
+    el.passwordModalClose.addEventListener('click', () => el.passwordModal.classList.remove('active'));
+    el.passwordModalCancel.addEventListener('click', () => el.passwordModal.classList.remove('active'));
+    el.passwordModal.addEventListener('click', (e) => { if (e.target === el.passwordModal) el.passwordModal.classList.remove('active'); });
+    el.passwordForm.addEventListener('submit', handleChangePassword);
+
+    // Search
+    el.searchInput.addEventListener('input', e => {
+      state.searchQuery = e.target.value.trim().toLowerCase();
+      el.searchClear.style.display = state.searchQuery ? 'block' : 'none';
+      render();
+    });
+    el.searchClear.addEventListener('click', () => {
+      el.searchInput.value = ''; state.searchQuery = ''; el.searchClear.style.display = 'none'; render();
+    });
+
+    // Tabs (leader)
+    if (isLeader) {
+      el.tabStaff.addEventListener('click', () => switchView('staff'));
+      el.tabCategory.addEventListener('click', () => switchView('category'));
+      el.tabDashboard.addEventListener('click', () => switchView('dashboard'));
+      el.toggleSidebarBtn.addEventListener('click', () => el.stagingSidebar.classList.toggle('collapsed'));
+      el.saveBtn.addEventListener('click', () => saveData(true));
+      el.resetBtn.addEventListener('click', resetToDefault);
+      el.exportBtn.addEventListener('click', exportToCSV);
+      el.createTaskBtn.addEventListener('click', () => openTaskModal());
+      el.sidebarCreateBtn.addEventListener('click', () => openTaskModal(null, true));
+      el.taskModalClose.addEventListener('click', closeTaskModal);
+      el.taskModalCancel.addEventListener('click', closeTaskModal);
+      el.taskForm.addEventListener('submit', handleTaskFormSubmit);
+      el.deleteTaskBtn.addEventListener('click', handleDeleteTask);
+      setupDropzone(el.stagingDropzone, taskId => moveToStaging(taskId));
+    }
+
+    // Sync modal
+    el.syncConfigBtn.addEventListener('click', openSyncModal);
+    el.syncModalClose.addEventListener('click', closeSyncModal);
+    el.syncModal.addEventListener('click', e => { if (e.target === el.syncModal) closeSyncModal(); });
+    el.btnSyncNow.addEventListener('click', () => pullFromCloud(true));
+    el.btnSaveSyncConfig.addEventListener('click', () => {
+      const url = (el.fieldSyncUrl ? el.fieldSyncUrl.value.trim() : '') || DEFAULT_CLOUD_API;
+      state.cloudApiUrl = url;
+      localStorage.setItem(SYNC_URL_KEY, url);
+      notify('success', 'Đã lưu cấu hình!');
+      if (url) saveData(false);
+      closeSyncModal();
+    });
+
+    // Cross-tab sync
+    window.addEventListener('storage', e => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const p = JSON.parse(e.newValue);
+          if (p.tasks) state.tasks = p.tasks;
+          if (p.categories) state.categories = p.categories;
+          if (p.employees) state.employees = p.employees;
+          state.lastSavedAt = p.savedAt || new Date().toISOString();
+          render(); updateQuickStats();
+        } catch(err) {}
+      }
+    });
+
+    window.addEventListener('focus', () => { if (state.cloudApiUrl) pullFromCloud(false); });
+  }
+
+  // =========================================================================
+  // CHANGE PASSWORD
+  // =========================================================================
+  const CUSTOM_PASSWORDS_KEY = 'KTAT_CUSTOM_PASSWORDS';
+
+  function getCustomPasswords() {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_PASSWORDS_KEY) || '{}'); } catch(e) { return {}; }
+  }
+
+  function handleChangePassword(e) {
+    e.preventDefault();
+    const currentPw = document.getElementById('currentPassword').value;
+    const newPw = document.getElementById('newPassword').value;
+    const confirmPw = document.getElementById('confirmPassword').value;
+    const errorBox = el.passwordError;
+
+    // Get current valid password for this user
+    const customPasswords = getCustomPasswords();
+    const defaultAccount = window.KTAT_AUTH_DATA.accounts.find(a => a.empId === currentSession.empId);
+    const validPassword = customPasswords[currentSession.empId] || (defaultAccount ? defaultAccount.password : '');
+
+    if (currentPw !== validPassword) {
+      errorBox.textContent = '⚠️ Mật khẩu hiện tại không đúng!';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    if (newPw.length < 6) {
+      errorBox.textContent = '⚠️ Mật khẩu mới phải có tối thiểu 6 ký tự!';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    if (newPw !== confirmPw) {
+      errorBox.textContent = '⚠️ Mật khẩu xác nhận không khớp!';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    if (newPw === currentPw) {
+      errorBox.textContent = '⚠️ Mật khẩu mới phải khác mật khẩu hiện tại!';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    // Save new password
+    customPasswords[currentSession.empId] = newPw;
+    localStorage.setItem(CUSTOM_PASSWORDS_KEY, JSON.stringify(customPasswords));
+
+    el.passwordModal.classList.remove('active');
+    el.passwordForm.reset();
+    notify('success', '🔒 Đã đổi mật khẩu thành công!');
+  }
+
+  function switchView(viewName) {
+    state.activeView = viewName;
+    el.tabStaff.classList.toggle('active', viewName === 'staff');
+    el.tabCategory.classList.toggle('active', viewName === 'category');
+    el.tabDashboard.classList.toggle('active', viewName === 'dashboard');
+    render();
+  }
+
+  function resetToDefault() {
+    if (confirm('Khôi phục toàn bộ dữ liệu về mặc định?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      loadData(); render(); updateQuickStats(); saveData(false);
+      notify('info', 'Đã khôi phục dữ liệu gốc!');
+    }
+  }
+
+  // =========================================================================
+  // TOAST
+  // =========================================================================
+  function notify(type, msg) {
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.innerHTML = `<span><strong>${type === 'success' ? '✓' : 'ℹ'}</strong> ${msg}</span>`;
+    el.toastContainer.appendChild(t);
+    setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+  }
+
+  // =========================================================================
+  // DRAG AND DROP
+  // =========================================================================
+  function makeTaskCardDraggable(card, task) {
+    if (!isLeader) { card.classList.add('no-drag'); return; }
+    card.setAttribute('draggable', 'true');
+    card.dataset.taskId = task.id;
+    card.addEventListener('dragstart', e => {
+      state.draggedTaskId = task.id; card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', task.id);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging'); state.draggedTaskId = null;
+      document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+    });
+    card.addEventListener('click', e => { if (e.target.closest('.no-click-modal')) return; openTaskModal(task.id); });
+  }
+
+  function setupDropzone(dz, onDrop) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over'); });
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); const id = e.dataTransfer.getData('text/plain') || state.draggedTaskId; if (id) onDrop(id); });
+  }
+
+  function assignTaskToEmployee(taskId, empId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    const emp = state.employees.find(e => e.id === empId);
+    if (!task || !emp) return;
+    task.in_staging = false; task.assignee_ids = [empId]; task.assignee_text = emp.name;
+    saveData(false); render(); updateQuickStats();
+    notify('success', `Đã phân công cho <strong>${emp.name}</strong>`);
+  }
+
+  function assignTaskToCategory(taskId, catId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    const cat = state.categories.find(c => c.id === catId);
+    if (!task || !cat) return;
+    task.category_id = catId; task.category = cat.title;
+    saveData(false); render(); updateQuickStats();
+  }
+
+  function moveToStaging(taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.in_staging = true; task.assignee_ids = []; task.assignee_text = 'Chưa phân công';
+    saveData(false); render(); updateQuickStats();
+    notify('info', 'Đã chuyển vào Danh sách chờ');
+  }
+
+  // =========================================================================
+  // RENDER CONTROLLER
+  // =========================================================================
+  function render() {
+    if (isLeader) renderStagingSidebar();
+    if (state.activeView === 'staff') renderStaffView();
+    else if (state.activeView === 'category') renderCategoryView();
+    else if (state.activeView === 'dashboard') renderDashboardView();
+    else if (state.activeView === 'personal') renderPersonalView();
+  }
+
+  function updateQuickStats() {
+    const total = state.tasks.length;
+    const completed = state.tasks.filter(t => t.status === 'completed').length;
+    const pending = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0).length;
+    el.quickTotal.textContent = total;
+    el.quickAssigned.textContent = total - pending;
+    el.quickCompleted.textContent = completed;
+    el.quickPending.textContent = pending;
+  }
+
+  // =========================================================================
+  // STAGING SIDEBAR
+  // =========================================================================
+  function renderStagingSidebar() {
+    el.stagingDropzone.innerHTML = '';
+    const stagingTasks = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0);
+    el.stagingCounter.textContent = stagingTasks.length;
+    if (stagingTasks.length === 0) {
+      el.stagingDropzone.innerHTML = `<div class="staging-placeholder"><div class="staging-placeholder-icon">📥</div><strong>Kéo công việc vào đây</strong><br>hoặc nhấn "+" để thêm mới.</div>`;
+      return;
+    }
+    stagingTasks.forEach(task => el.stagingDropzone.appendChild(createTaskCard(task, { showAssignees: false })));
+  }
+
+  // =========================================================================
+  // STAFF VIEW (LEADER)
+  // =========================================================================
+  function renderStaffView() {
+    el.mainContent.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'staff-view-container';
+    const teams = [
+      { id: 'BLĐ', name: 'Ban Lãnh đạo Phòng', icon: '🏛️', cls: 'team-bld' },
+      { id: 'TKT', name: 'Tổ Kỹ thuật', icon: '⚡', cls: 'team-tkt' },
+      { id: 'TCNTT', name: 'Tổ Công nghệ thông tin', icon: '💻', cls: 'team-tcntt' }
+    ];
+    teams.forEach(team => {
+      const teamEmps = state.employees.filter(e => e.team === team.id);
+      if (!teamEmps.length) return;
+      let taskCount = 0;
+      teamEmps.forEach(emp => { taskCount += state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id)).length; });
+      const section = document.createElement('div');
+      section.className = `team-group-section ${team.cls}`;
+      section.innerHTML = `<div class="team-group-header"><div class="team-title-wrap"><div class="team-icon">${team.icon}</div><h3 class="team-name">${team.name}</h3></div><span class="team-stats-badge">${teamEmps.length} nhân sự • ${taskCount} việc</span></div><div class="staff-columns-grid" id="tg_${team.id}"></div>`;
+      container.appendChild(section);
+      const grid = section.querySelector(`#tg_${team.id}`);
+      teamEmps.forEach(emp => grid.appendChild(createEmployeeColumn(emp)));
+    });
+    el.mainContent.appendChild(container);
+  }
+
+  function createEmployeeColumn(emp) {
+    const col = document.createElement('div');
+    col.className = 'employee-column';
+    let empTasks = state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id));
+    if (state.searchQuery) empTasks = empTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
+    const initials = getInitials(emp.name);
+    const photoUrl = emp.photo;
+    col.innerHTML = `
+      <div class="employee-header">
+        <div class="employee-avatar-wrap">
+          ${photoUrl ? `<img class="employee-avatar-img" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="employee-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="employee-avatar-fallback">${initials}</div>`}
+        </div>
+        <div class="employee-info">
+          <div class="employee-name" title="${emp.name}">${emp.name}</div>
+          <div class="employee-role" title="${emp.position}">${emp.position}</div>
+        </div>
+        <div class="employee-task-count">${empTasks.length} việc</div>
+      </div>
+      <div class="employee-tasks-dropzone" id="dz_${emp.id}"></div>`;
+    const dz = col.querySelector(`#dz_${emp.id}`);
+    if (isLeader) setupDropzone(dz, taskId => assignTaskToEmployee(taskId, emp.id));
+    if (empTasks.length === 0) {
+      dz.innerHTML = `<div class="empty-task-placeholder">Chưa có việc${isLeader ? ' • Thả việc vào đây' : ''}</div>`;
+    } else {
+      empTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: false, currentEmpId: emp.id })));
+    }
+    return col;
+  }
+
+  // =========================================================================
+  // CATEGORY VIEW (LEADER)
+  // =========================================================================
+  function renderCategoryView() {
+    el.mainContent.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'category-view-grid';
+    state.categories.forEach(cat => {
+      let catTasks = state.tasks.filter(t => t.category_id === cat.id && !t.in_staging);
+      if (state.searchQuery) catTasks = catTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
+      const card = document.createElement('div');
+      card.className = 'category-card';
+      card.innerHTML = `<div class="category-header" style="background:${cat.bg_color};border-color:${cat.border_color};"><div class="category-header-title" style="color:${cat.color};"><span>🏷️</span><span>${cat.title}</span></div><span class="category-badge-count" style="color:${cat.color};">${catTasks.length} việc</span></div><div class="category-tasks-dropzone" id="cdz_${cat.id}"></div>`;
+      const dz = card.querySelector(`#cdz_${cat.id}`);
+      if (isLeader) setupDropzone(dz, taskId => assignTaskToCategory(taskId, cat.id));
+      if (catTasks.length === 0) {
+        dz.innerHTML = `<div class="empty-task-placeholder">Chưa có công việc</div>`;
+      } else {
+        catTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: true })));
+      }
+      grid.appendChild(card);
+    });
+    el.mainContent.appendChild(grid);
+  }
+
+  // =========================================================================
+  // DASHBOARD VIEW (LEADER)
+  // =========================================================================
+  function renderDashboardView() {
+    el.mainContent.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'dashboard-container';
+    const total = state.tasks.length;
+    const completed = state.tasks.filter(t => t.status === 'completed').length;
+    const inProgress = state.tasks.filter(t => t.status === 'in_progress' && !t.in_staging && t.assignee_ids && t.assignee_ids.length > 0).length;
+    const pending = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0).length;
+
+    // KPI
+    const kpi = document.createElement('div');
+    kpi.className = 'dashboard-kpi-row';
+    kpi.innerHTML = `
+      <div class="kpi-card kpi-blue"><div class="kpi-info"><span class="kpi-label">Tổng số công việc</span><span class="kpi-value">${total}</span><span class="kpi-subtext">Phòng KTAT</span></div><div class="kpi-icon-wrap">📋</div></div>
+      <div class="kpi-card kpi-amber"><div class="kpi-info"><span class="kpi-label">Đang thực hiện</span><span class="kpi-value">${inProgress}</span><span class="kpi-subtext">Đã phân công</span></div><div class="kpi-icon-wrap">⏳</div></div>
+      <div class="kpi-card kpi-green"><div class="kpi-info"><span class="kpi-label">Đã hoàn thành</span><span class="kpi-value">${completed}</span><span class="kpi-subtext">Hoàn tất</span></div><div class="kpi-icon-wrap">✅</div></div>
+      <div class="kpi-card kpi-purple"><div class="kpi-info"><span class="kpi-label">Danh sách chờ</span><span class="kpi-value">${pending}</span><span class="kpi-subtext">Chưa gán</span></div><div class="kpi-icon-wrap">📥</div></div>`;
+    container.appendChild(kpi);
+
+    // 2-col: workload + category breakdown
+    const grid2 = document.createElement('div');
+    grid2.className = 'dashboard-grid-2col';
+    const allEmps = state.employees;
+    const workloadList = allEmps.map(emp => ({
+      emp, count: state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id)).length
+    })).sort((a, b) => b.count - a.count);
+    const maxC = Math.max(...workloadList.map(w => w.count), 1);
+
+    const leftPanel = document.createElement('div');
+    leftPanel.className = 'dashboard-panel';
+    leftPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">👥 Phân bổ công việc theo Nhân sự</h4><span style="font-size:11.5px;color:var(--text-muted);">${allEmps.length} CBCNV</span></div></div>
+      <div class="workload-chart-list">${workloadList.map(item => {
+        const photo = item.emp.photo;
+        const ini = getInitials(item.emp.name);
+        const pct = item.count > 0 ? Math.max(Math.round((item.count / maxC) * 100), 10) : 0;
+        return `<div class="workload-bar-item">
+          <div class="workload-avatar-wrap">${photo ? `<img class="workload-avatar-img" src="${photo}" alt="${item.emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span class="workload-avatar-fallback" style="display:none;">${ini}</span>` : `<span class="workload-avatar-fallback">${ini}</span>`}</div>
+          <div class="workload-staff-info"><span class="workload-staff-name" title="${item.emp.name}">${item.emp.name}</span><div class="workload-sub-row"><span class="workload-role-text">${item.emp.position}</span></div></div>
+          <div class="workload-track"><div class="workload-fill" style="width:${pct}%;">${item.count > 0 ? item.count : ''}</div></div>
+          <span class="workload-count">${item.count} việc</span>
+        </div>`;
+      }).join('')}</div>`;
+    grid2.appendChild(leftPanel);
+
+    const rightPanel = document.createElement('div');
+    rightPanel.className = 'dashboard-panel';
+    rightPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">🏷️ Cơ cấu theo Nhóm công tác</h4></div></div>
+      <div class="category-stat-list">${state.categories.map(cat => {
+        const cnt = state.tasks.filter(t => t.category_id === cat.id).length;
+        return `<div class="category-stat-item" style="border-left-color:${cat.color};"><span class="category-stat-name">${cat.title}</span><span class="category-stat-count">${cnt} việc</span></div>`;
+      }).join('')}</div>`;
+    grid2.appendChild(rightPanel);
+    container.appendChild(grid2);
+    el.mainContent.appendChild(container);
+  }
+
+  // =========================================================================
+  // PERSONAL VIEW (EMPLOYEE)
+  // =========================================================================
+  function renderPersonalView() {
+    el.mainContent.innerHTML = '';
+    const emp = state.employees.find(e => e.id === currentEmpId);
+    if (!emp) { el.mainContent.innerHTML = '<p>Không tìm thấy thông tin nhân viên.</p>'; return; }
+
+    const container = document.createElement('div');
+    container.className = 'employee-personal-container';
+
+    // My tasks
+    const myAssignedTasks = state.tasks.filter(t => t.assignee_ids && t.assignee_ids.includes(currentEmpId) && t.status === 'in_progress');
+    const myCompletedTasks = state.tasks.filter(t => t.assignee_ids && t.assignee_ids.includes(currentEmpId) && t.status === 'completed');
+    const mySelfTasks = state.tasks.filter(t => t.created_by === currentEmpId);
+
+    // Welcome card
+    const photoUrl = emp.photo;
+    const initials = getInitials(emp.name);
+    container.innerHTML = `
+      <div class="personal-welcome-card">
+        ${photoUrl ? `<img class="personal-welcome-avatar" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="personal-welcome-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="personal-welcome-avatar-fallback">${initials}</div>`}
+        <div class="personal-welcome-info">
+          <h2>Xin chào, ${emp.short_name || emp.name}!</h2>
+          <p>${emp.position} — ${emp.dept_full}</p>
+          <div class="personal-stats-row">
+            <div class="personal-stat-item"><strong>${myAssignedTasks.length}</strong> Đang làm</div>
+            <div class="personal-stat-item"><strong>${myCompletedTasks.length}</strong> Đã xong</div>
+            <div class="personal-stat-item"><strong>${mySelfTasks.length}</strong> Tự nhập</div>
+          </div>
+        </div>
+      </div>`;
+
+    // Self-input section
+    const selfInput = document.createElement('div');
+    selfInput.className = 'self-input-section';
+    selfInput.innerHTML = `
+      <div class="self-input-header"><span style="font-size:20px;">✏️</span><h3>Nhập công việc đang thực hiện</h3></div>
+      <div class="self-input-body">
+        <div class="self-input-fields">
+          <div class="form-group">
+            <label class="form-label" for="selfTaskTitle">Tên công việc <span class="required">*</span></label>
+            <input type="text" id="selfTaskTitle" class="form-control" placeholder="VD: Khảo sát tuyến đường dây trung thế khu vực ABC...">
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="selfTaskDetail">Chi tiết</label>
+              <textarea id="selfTaskDetail" class="form-control" rows="2" placeholder="Mô tả chi tiết công việc..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="selfTaskCategory">Nhóm công việc</label>
+              <select id="selfTaskCategory" class="form-control">
+                ${state.categories.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}
+                <option value="__NEW__">➕ Tạo nhóm mới...</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="selfTaskDeadline">Thời hạn</label>
+              <input type="text" id="selfTaskDeadline" class="form-control" placeholder="VD: 20/09/2026">
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button type="button" class="btn btn-success" id="selfTaskSubmitBtn" style="width:100%;padding:10px;">📝 Ghi nhận công việc</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(selfInput);
+
+    // Task panels: 3 columns for assigned / self-added / completed
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'personal-tasks-grid';
+
+    // Assigned tasks
+    gridDiv.innerHTML += `
+      <div class="personal-task-panel">
+        <div class="personal-panel-header assigned"><span class="personal-panel-title">📌 Công việc được giao</span><span class="personal-panel-count">${myAssignedTasks.length}</span></div>
+        <div class="personal-tasks-list" id="assignedTasksList">
+          ${myAssignedTasks.length === 0 ? '<div class="empty-personal-placeholder"><span class="empty-icon">📭</span>Chưa có công việc được giao</div>' :
+            myAssignedTasks.map(t => renderPersonalTaskItem(t, 'assigned')).join('')}
+        </div>
+      </div>`;
+
+    // Completed tasks
+    gridDiv.innerHTML += `
+      <div class="personal-task-panel">
+        <div class="personal-panel-header completed"><span class="personal-panel-title">✅ Đã hoàn thành</span><span class="personal-panel-count">${myCompletedTasks.length}</span></div>
+        <div class="personal-tasks-list" id="completedTasksList">
+          ${myCompletedTasks.length === 0 ? '<div class="empty-personal-placeholder"><span class="empty-icon">🎯</span>Chưa có công việc hoàn thành</div>' :
+            myCompletedTasks.map(t => renderPersonalTaskItem(t, 'completed')).join('')}
+        </div>
+      </div>`;
+
+    container.appendChild(gridDiv);
+    el.mainContent.appendChild(container);
+
+    // Bind self-input button
+    const submitBtn = document.getElementById('selfTaskSubmitBtn');
+    if (submitBtn) submitBtn.addEventListener('click', handleSelfTaskSubmit);
+
+    // Bind action buttons on personal task items
+    container.querySelectorAll('[data-action="complete"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.taskId;
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) { task.status = 'completed'; saveData(false); render(); updateQuickStats(); notify('success', 'Đã đánh dấu hoàn thành!'); }
+      });
+    });
+    container.querySelectorAll('[data-action="reopen"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.taskId;
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) { task.status = 'in_progress'; saveData(false); render(); updateQuickStats(); notify('info', 'Đã mở lại công việc'); }
+      });
+    });
+  }
+
+  function renderPersonalTaskItem(task, mode) {
+    const cat = state.categories.find(c => c.id === task.category_id);
+    const subAssign = task.sub_assignments && task.sub_assignments[currentEmpId] ? task.sub_assignments[currentEmpId] : '';
+    const isSelf = task.created_by === currentEmpId;
+    return `
+      <div class="personal-task-item">
+        <div class="personal-task-title">${escapeHtml(task.title)}</div>
+        ${subAssign ? `<div class="task-sub-assigned-box"><strong>🎯 Nhiệm vụ:</strong> ${escapeHtml(subAssign)}</div>` : ''}
+        <div class="personal-task-meta">
+          ${cat ? `<span class="personal-task-tag tag-category">${cat.title}</span>` : ''}
+          ${task.deadline ? `<span class="personal-task-tag tag-deadline">📅 ${formatFullDate(task.deadline)}</span>` : ''}
+          ${isSelf ? `<span class="personal-task-tag tag-self">✏️ Tự nhập</span>` : ''}
+        </div>
+        <div class="personal-task-actions">
+          ${mode === 'assigned' ? `<button class="btn btn-success" data-action="complete" data-task-id="${task.id}">✓ Hoàn thành</button>` : ''}
+          ${mode === 'completed' ? `<button class="btn btn-outline" data-action="reopen" data-task-id="${task.id}">↩ Mở lại</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+
+  // Helper: Convert number to Roman numeral
+  function toRoman(num) {
+    const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+    const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+    let result = '';
+    for (let i = 0; i < vals.length; i++) {
+      while (num >= vals[i]) { result += syms[i]; num -= vals[i]; }
+    }
+    return result;
+  }
+
+  // Helper: Get next Roman numeral code based on existing categories
+  function getNextRomanCode() {
+    let maxNum = 0;
+    const romanPattern = /^([IVXLCDM]+)\.\s/;
+    state.categories.forEach(c => {
+      const match = c.title.match(romanPattern);
+      if (match) {
+        const roman = match[1];
+        const num = fromRoman(roman);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    return toRoman(maxNum + 1);
+  }
+
+  function fromRoman(s) {
+    const map = {I:1,V:5,X:10,L:50,C:100,D:500,M:1000};
+    let total = 0;
+    for (let i = 0; i < s.length; i++) {
+      const cur = map[s[i]] || 0;
+      const next = map[s[i+1]] || 0;
+      total += cur < next ? -cur : cur;
+    }
+    return total;
+  }
+
+  // Helper: Create a new category dynamically
+  function createNewCategory() {
+    const name = prompt('Nhập tên nhóm công việc mới:\n(Ví dụ: Công tác An toàn lao động)');
+    if (!name || !name.trim()) return null;
+    let trimmed = name.trim();
+
+    // Auto-add Roman numeral if not already present
+    const romanPrefix = /^[IVXLCDM]+\.\s/;
+    if (!romanPrefix.test(trimmed)) {
+      const nextCode = getNextRomanCode();
+      trimmed = `${nextCode}. ${trimmed}`;
+    }
+
+    const colors = ['#2563eb','#059669','#7c3aed','#dc2626','#d97706','#0891b2','#4f46e5','#0d9488','#9333ea','#6d28d9','#ea580c','#be185d'];
+    const bgColors = ['#eff6ff','#ecfdf5','#f5f3ff','#fef2f2','#fffbeb','#ecfeff','#eef2ff','#f0fdfa','#faf5ff','#ede9fe','#fff7ed','#fdf2f8'];
+    const borderColors = ['#bfdbfe','#a7f3d0','#ddd6fe','#fecaca','#fde68a','#a5f3fc','#c7d2fe','#99f6e4','#f3e8ff','#c4b5fd','#fed7aa','#fbcfe8'];
+    const idx = state.categories.length % colors.length;
+    const newCat = {
+      id: `cat_custom_${Date.now()}`,
+      code: getNextRomanCode(),
+      title: trimmed,
+      section: 'C. Nhóm công việc khác',
+      color: colors[idx],
+      bg_color: bgColors[idx],
+      border_color: borderColors[idx]
+    };
+    state.categories.push(newCat);
+    saveData(false);
+    notify('success', `Đã tạo nhóm: ${trimmed}`);
+    return newCat;
+  }
+
+  function handleSelfTaskSubmit() {
+    const titleEl = document.getElementById('selfTaskTitle');
+    const detailEl = document.getElementById('selfTaskDetail');
+    const catEl = document.getElementById('selfTaskCategory');
+    const deadlineEl = document.getElementById('selfTaskDeadline');
+
+    const title = titleEl.value.trim();
+    if (!title) { alert('Vui lòng nhập tên công việc!'); titleEl.focus(); return; }
+
+    const emp = state.employees.find(e => e.id === currentEmpId);
+    let catId = catEl.value;
+    let cat;
+    if (catId === '__NEW__') {
+      const newCat = createNewCategory();
+      if (!newCat) return;
+      cat = newCat; catId = newCat.id;
+    } else {
+      cat = state.categories.find(c => c.id === catId);
+    }
+
+    const newTask = {
+      id: `task_self_${Date.now()}`,
+      stt: `${state.tasks.length + 1}`,
+      title: title,
+      detail: detailEl.value.trim() || title,
+      section: cat ? cat.section : '',
+      category: cat ? cat.title : '',
+      subcategory: '',
+      category_id: catId,
+      assignee_ids: [currentEmpId],
+      assignee_text: emp ? emp.name : '',
+      follower_ids: [],
+      follower_text: '',
+      deadline: formatFullDate(deadlineEl.value.trim()),
+      status: 'in_progress',
+      priority: 'normal',
+      in_staging: false,
+      sub_assignments: {},
+      created_by: currentEmpId
+    };
+
+    state.tasks.unshift(newTask);
+    saveData(false);
+    render();
+    updateQuickStats();
+    notify('success', 'Đã ghi nhận công việc của bạn!');
+
+    // Reset form
+    titleEl.value = '';
+    detailEl.value = '';
+    deadlineEl.value = '';
+  }
+
+  // =========================================================================
+  // TASK CARD BUILDER
+  // =========================================================================
+  function createTaskCard(task, options = {}) {
+    const card = document.createElement('div');
+    card.className = 'task-card';
+    card.dataset.taskId = task.id;
+
+    let subAssignmentText = '';
+    if (options.currentEmpId && task.sub_assignments && task.sub_assignments[options.currentEmpId]) {
+      subAssignmentText = task.sub_assignments[options.currentEmpId];
+    }
+
+    let assigneesHtml = '';
+    if (options.showAssignees) {
+      if (task.assignee_ids && task.assignee_ids.length > 0) {
+        const assignedEmps = state.employees.filter(e => task.assignee_ids.includes(e.id));
+        assigneesHtml = `<div class="task-assignees-list">${assignedEmps.map(e => {
+          const pUrl = e.photo;
+          return `<span class="assignee-chip" title="${e.name}">
+            ${pUrl ? `<img class="assignee-chip-mini-photo" src="${pUrl}" alt="${e.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';" /><span class="assignee-chip-mini-avatar" style="display:none;">${getInitials(e.name)}</span>` : `<span class="assignee-chip-mini-avatar">${getInitials(e.name)}</span>`}
+            <span class="assignee-chip-name">${e.short_name || e.name}</span></span>`;
+        }).join('')}</div>`;
+      } else {
+        assigneesHtml = `<div class="task-assignees-list"><span class="assignee-chip" style="color:#ef4444;background:#fef2f2;border-color:#fecaca;">⚠️ Chưa phân công</span></div>`;
+      }
+    }
+
+    card.innerHTML = `
+      <div class="task-title">${escapeHtml(task.title)}</div>
+      ${subAssignmentText ? `<div class="task-sub-assigned-box"><strong>🎯 Phân công:</strong> ${escapeHtml(subAssignmentText)}</div>` : ''}
+      ${assigneesHtml}
+      <div><button type="button" class="task-detail-toggle-btn no-click-modal" title="Chi tiết"><span>Chi tiết</span> <span class="toggle-arrow">▾</span></button></div>
+      <div class="task-detail-expandable no-click-modal" style="display:none;">
+        <div style="font-weight:700;margin-bottom:4px;">Nội dung:</div>
+        <div>${escapeHtml(task.detail || task.title)}</div>
+      </div>
+      <div class="task-card-footer">
+        <div>
+          ${task.deadline ? `<span class="task-deadline">📅 ${formatFullDate(task.deadline)}</span>` : ''}
+          ${task.follower_text ? `<span class="task-follower">👁️ ${task.follower_ids && task.follower_ids.length > 0 ? getShortName(task.follower_ids[0]) : escapeHtml(task.follower_text.substring(0, 15))}</span>` : ''}
+        </div>
+        <span class="task-status-chip ${task.status === 'completed' ? 'task-status-completed' : 'task-status-inprogress'}">${task.status === 'completed' ? '✓ Xong' : '● Đang làm'}</span>
+      </div>`;
+
+    // Toggle detail
+    const toggleBtn = card.querySelector('.task-detail-toggle-btn');
+    const expandBox = card.querySelector('.task-detail-expandable');
+    const toggleArrow = card.querySelector('.toggle-arrow');
+    const toggleSpan = toggleBtn.querySelector('span');
+    if (toggleBtn && expandBox) {
+      toggleBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const shown = expandBox.style.display === 'block';
+        expandBox.style.display = shown ? 'none' : 'block';
+        toggleSpan.textContent = shown ? 'Chi tiết' : 'Thu gọn';
+        toggleArrow.textContent = shown ? '▾' : '▴';
+      });
+    }
+
+    makeTaskCardDraggable(card, task);
+    return card;
+  }
+
+  // =========================================================================
+  // TASK MODAL (LEADER)
+  // =========================================================================
+  function populateFormSelects() {
+    el.fieldCategory.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.title}</option>`).join('') + `<option value="__NEW__">➕ Tạo nhóm công việc mới...</option>`;
+    const teams = [
+      { id: 'BLĐ', name: 'Ban Lãnh đạo' },
+      { id: 'TKT', name: 'Tổ Kỹ thuật' },
+      { id: 'TCNTT', name: 'Tổ CNTT' }
+    ];
+    let assigneeOpts = `<option value="">-- Chưa phân công --</option>`;
+    teams.forEach(team => {
+      const emps = state.employees.filter(e => e.team === team.id);
+      if (emps.length) {
+        assigneeOpts += `<optgroup label="${team.name}">`;
+        emps.forEach(emp => { assigneeOpts += `<option value="${emp.id}">${emp.name} - ${emp.position}</option>`; });
+        assigneeOpts += `</optgroup>`;
+      }
+    });
+    el.fieldAssignee.innerHTML = assigneeOpts;
+    el.fieldFollower.innerHTML = `
+      <option value="">-- Không --</option>
+      <option value="emp_012054">Nguyễn Đức Minh (Trưởng phòng)</option>
+      <option value="emp_012170">Phan Thế Vinh (Phó phòng)</option>
+      <option value="emp_010333">Nguyễn Huy (Phó phòng)</option>
+      <option value="emp_012554">Nguyễn Đình Hanh (Tổ trưởng KT)</option>`;
+  }
+
+  function openTaskModal(taskId = null, isStagingOnly = false) {
+    if (!isLeader) return;
+    state.editingTaskId = taskId;
+    if (taskId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      el.taskModalTitle.innerHTML = `✏️ Chỉnh sửa: ${escapeHtml(task.title.substring(0, 35))}...`;
+      el.fieldTaskId.value = task.id;
+      el.fieldTitle.value = task.title;
+      el.fieldDetail.value = task.detail || '';
+      el.fieldCategory.value = task.category_id || state.categories[0].id;
+      el.fieldAssignee.value = (task.assignee_ids && task.assignee_ids[0]) || '';
+      el.fieldFollower.value = (task.follower_ids && task.follower_ids[0]) || '';
+      el.fieldDeadline.value = formatFullDate(task.deadline) || '';
+      el.fieldStatus.value = task.status || 'in_progress';
+      el.fieldPriority.value = task.priority || 'normal';
+      el.deleteTaskBtn.style.display = 'inline-flex';
+    } else {
+      el.taskModalTitle.innerHTML = `➕ Thêm mới công việc`;
+      el.taskForm.reset();
+      el.fieldTaskId.value = '';
+      el.fieldCategory.value = state.categories[0].id;
+      el.fieldStatus.value = 'in_progress';
+      el.fieldPriority.value = 'normal';
+      if (isStagingOnly) el.fieldAssignee.value = '';
+      el.deleteTaskBtn.style.display = 'none';
+    }
+    el.taskModal.classList.add('active');
+  }
+
+  function closeTaskModal() { el.taskModal.classList.remove('active'); state.editingTaskId = null; }
+
+  function handleTaskFormSubmit(e) {
+    e.preventDefault();
+    const title = el.fieldTitle.value.trim();
+    if (!title) { alert('Nhập tên công việc!'); return; }
+    const detail = el.fieldDetail.value.trim() || title;
+    let catId = el.fieldCategory.value;
+    let cat;
+    if (catId === '__NEW__') {
+      const newCat = createNewCategory();
+      if (!newCat) return;
+      cat = newCat; catId = newCat.id;
+      populateFormSelects();
+      el.fieldCategory.value = catId;
+    } else {
+      cat = state.categories.find(c => c.id === catId);
+    }
+    const assigneeId = el.fieldAssignee.value;
+    const followerId = el.fieldFollower.value;
+    const deadline = formatFullDate(el.fieldDeadline.value.trim());
+    const status = el.fieldStatus.value;
+    const priority = el.fieldPriority.value;
+    const assigneeEmp = state.employees.find(e => e.id === assigneeId);
+    const followerEmp = state.employees.find(e => e.id === followerId);
+
+    if (state.editingTaskId) {
+      const task = state.tasks.find(t => t.id === state.editingTaskId);
+      if (task) {
+        Object.assign(task, {
+          title, detail, category_id: catId, category: cat ? cat.title : '',
+          assignee_ids: assigneeId ? [assigneeId] : [], assignee_text: assigneeEmp ? assigneeEmp.name : 'Chưa phân công',
+          follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
+          deadline, status, priority, in_staging: !assigneeId
+        });
+        saveData(false); notify('success', 'Đã cập nhật!');
+      }
+    } else {
+      state.tasks.unshift({
+        id: `task_${Date.now()}`, stt: `${state.tasks.length + 1}`, title, detail,
+        section: cat ? cat.section : '', category: cat ? cat.title : '', subcategory: '', category_id: catId,
+        assignee_ids: assigneeId ? [assigneeId] : [], assignee_text: assigneeEmp ? assigneeEmp.name : 'Chưa phân công',
+        follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
+        deadline, status, priority, in_staging: !assigneeId, sub_assignments: {}, created_by: 'leader'
+      });
+      saveData(false);
+      notify('success', assigneeId ? `Đã tạo và phân công cho ${assigneeEmp.name}!` : 'Đã thêm vào Danh sách chờ!');
+    }
+    closeTaskModal(); render(); updateQuickStats();
+  }
+
+  function handleDeleteTask() {
+    if (!state.editingTaskId) return;
+    if (confirm('Xóa công việc này?')) {
+      state.tasks = state.tasks.filter(t => t.id !== state.editingTaskId);
+      saveData(false); closeTaskModal(); render(); updateQuickStats();
+      notify('info', 'Đã xóa công việc!');
+    }
+  }
+
+  // =========================================================================
+  // EXPORT CSV
+  // =========================================================================
+  function exportToCSV() {
+    const headers = ['STT', 'Nhóm', 'Tên công việc', 'Chi tiết', 'Phụ trách', 'Theo dõi', 'Thời hạn', 'Trạng thái'];
+    const rows = state.tasks.map((t, i) => [
+      t.stt || i + 1, t.category || '', `"${(t.title || '').replace(/"/g, '""')}"`,
+      `"${(t.detail || '').replace(/"/g, '""')}"`, `"${(t.assignee_text || '').replace(/"/g, '""')}"`,
+      `"${(t.follower_text || '').replace(/"/g, '""')}"`, formatFullDate(t.deadline) || '',
+      t.status === 'completed' ? 'Đã xong' : 'Đang làm'
+    ]);
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Cong_Viec_KTAT_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    notify('success', 'Đã xuất file CSV!');
+  }
+
+  // =========================================================================
+  // SYNC MODAL
+  // =========================================================================
+  function openSyncModal() {
+    if (el.fieldSyncUrl) el.fieldSyncUrl.value = state.cloudApiUrl || '';
+    if (el.syncLastTime && state.lastSavedAt) {
+      const d = new Date(state.lastSavedAt);
+      el.syncLastTime.textContent = d.toLocaleTimeString('vi-VN') + ' ' + d.toLocaleDateString('vi-VN');
+    }
+    const card = el.syncStatusCard;
+    if (card) {
+      card.className = 'sync-status-card';
+      if (state.cloudApiUrl) {
+        card.classList.add('status-synced');
+        el.syncStatusIcon.textContent = '🟢';
+        el.syncStatusTitle.textContent = 'Hệ thống trực tuyến';
+        el.syncStatusDesc.textContent = 'Dữ liệu đồng bộ 2 chiều với Google Sheet.';
+      } else {
+        card.classList.add('status-local');
+        el.syncStatusIcon.textContent = '⚡';
+        el.syncStatusTitle.textContent = 'Lưu cục bộ (Ngoại tuyến)';
+        el.syncStatusDesc.textContent = 'Dữ liệu lưu trên trình duyệt. Cấu hình máy chủ để đồng bộ đám mây.';
+      }
+    }
+    el.syncModal.classList.add('active');
+  }
+
+  function closeSyncModal() { el.syncModal.classList.remove('active'); }
+
+  // =========================================================================
+  // HELPERS
+  // =========================================================================
+  function formatFullDate(dateStr) {
+    if (!dateStr) return '';
+    dateStr = dateStr.trim();
+    const m = dateStr.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+    if (m) return `${String(m[1]).padStart(2, '0')}/${String(m[2]).padStart(2, '0')}/${m[3] || '2026'}`;
+    return dateStr;
+  }
+
+  function getInitials(name) {
+    if (!name) return 'VT';
+    const w = name.trim().split(/\s+/);
+    return w.length === 1 ? w[0].substring(0, 2).toUpperCase() : (w[0][0] + w[w.length - 1][0]).toUpperCase();
+  }
+
+  function getShortName(empId) {
+    const emp = state.employees.find(e => e.id === empId);
+    return emp ? (emp.short_name || emp.name.split(' ').pop()) : '';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  // Start
+  document.addEventListener('DOMContentLoaded', init);
+})();

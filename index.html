@@ -94,6 +94,20 @@
         } catch(e) {}
       }
 
+      // Background pull latest passwords from Google Sheet
+      const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbwBk3G9iV75PzxgWYEz5mZyFVqbWFwqUjdTSYOOtEN8x4SazmeR7EJCZmxPdmSETs-Y4w/exec';
+      try {
+        fetch(`${CLOUD_URL}?_t=${Date.now()}`)
+          .then(r => r.json())
+          .then(res => {
+            if (res && res.customPasswords && typeof res.customPasswords === 'object') {
+              const localPw = JSON.parse(localStorage.getItem('KTAT_CUSTOM_PASSWORDS') || '{}');
+              const merged = Object.assign({}, localPw, res.customPasswords);
+              localStorage.setItem('KTAT_CUSTOM_PASSWORDS', JSON.stringify(merged));
+            }
+          }).catch(() => {});
+      } catch(e) {}
+
       // Populate employee dropdown grouped by team
       const selectEl = document.getElementById('loginUsername');
       const accounts = window.KTAT_AUTH_DATA ? window.KTAT_AUTH_DATA.accounts : [];

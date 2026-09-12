@@ -1,33 +1,79 @@
 /**
- * GOOGLE APPS SCRIPT - ĐỒNG BỘ CÔNG VIỆC PHÒNG KỸ THUẬT VÀ AN TOÀN (PC VT)
+ * GOOGLE APPS SCRIPT - ĐỒNG BỘ CÔNG VIỆC & TÀI KHOẢN PHÒNG KỸ THUẬT VÀ AN TOÀN (PC VT)
  * Spreadsheet: https://docs.google.com/spreadsheets/d/1l8QqyhTdX9ci-s5qwzy-sLhAXfO7yDfhwbZhqQJohK0/edit
  * 
  * ==============================================================================
- * HƯỚNG DẪN TRIỂN KHAI:
+ * CÁC TAB TRÊN GOOGLE SHEET:
+ * 1. "Phân công trực tuyến" : Lưu trữ toàn bộ danh sách công việc, phân công, tiến độ
+ * 2. "Tài khoản"            : Quản lý danh sách tài khoản, mật khẩu (kể cả sau khi đổi)
  * ==============================================================================
- * 1. Mở Google Sheet trên → Tiện ích mở rộng → Apps Script
- * 2. Xóa nội dung Code.gs, dán toàn bộ mã này vào, Ctrl+S
- * 3. Bấm "Triển khai" → "Triển khai mới":
- *    - Loại: Ứng dụng web (Web app)
- *    - Thực thi: Tôi (Me)
- *    - Quyền truy cập: Bất kỳ ai (Anyone)
- * 4. Cấp quyền → Sao chép URL /exec
- * 5. Dán URL vào nút ☁️ Đồng bộ trên web KTAT
+ * HƯỚNG DẪN CẬP NHẬT TRÊN GOOGLE SHEET:
+ * 1. Mở Google Sheet → Tiện ích mở rộng (Extensions) → Apps Script
+ * 2. Xóa toàn bộ nội dung trong Code.gs, dán toàn bộ mã này vào, bấm Ctrl+S để lưu
+ * 3. Bấm "Triển khai" (Deploy) → "Quản lý bản triển khai" (Manage deployments):
+ *    - Bấm biểu tượng cây bút (Chỉnh sửa / Edit)
+ *    - Chọn Phiên bản (Version): "Phiên bản mới" (New version)
+ *    - Bấm "Triển khai" (Deploy)
+ * 4. (Tùy chọn) Chọn hàm "initSheetAndAccounts" từ thanh công cụ và bấm "Chạy" (Run)
+ *    để tạo ngay tab "Tài khoản" trên Google Sheet mà không cần chờ web gửi dữ liệu!
  * ==============================================================================
  */
 
 const STORAGE_PROP_KEY = 'KTAT_BOARD_DATA';
+const PASSWORDS_PROP_KEY = 'KTAT_CUSTOM_PASSWORDS';
 const SHEET_ID = '1l8QqyhTdX9ci-s5qwzy-sLhAXfO7yDfhwbZhqQJohK0';
 
+const TASKS_SHEET_NAME = 'Phân công trực tuyến';
+const ACCOUNTS_SHEET_NAME = 'Tài khoản';
+
+// Danh sách 18 tài khoản mặc định Phòng KTAT
+const DEFAULT_ACCOUNTS = [
+  { stt: 1, empId: "emp_012054", name: "Nguyễn Đức Minh", username: "nguyễn đức minh", password: "123", role: "Lãnh đạo phòng", team: "Ban Lãnh đạo", position: "Trưởng phòng" },
+  { stt: 2, empId: "emp_012170", name: "Phan Thế Vinh", username: "phan thế vinh", password: "123", role: "Lãnh đạo phòng", team: "Ban Lãnh đạo", position: "Phó Trưởng phòng" },
+  { stt: 3, empId: "emp_010333", name: "Nguyễn Huy", username: "nguyễn huy", password: "123", role: "Lãnh đạo phòng", team: "Ban Lãnh đạo", position: "Phó Trưởng phòng" },
+  { stt: 4, empId: "emp_012554", name: "Nguyễn Đình Hanh", username: "nguyễn đình hanh", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Tổ trưởng Kỹ thuật" },
+  { stt: 5, empId: "emp_012528", name: "Đặng Thiện Hiếu", username: "đặng thiện hiếu", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Tổ phó Tổ Kỹ thuật" },
+  { stt: 6, empId: "emp_012688", name: "Vũ Đại Dương", username: "vũ đại dương", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 7, empId: "emp_012500", name: "Nguyễn Anh Hoàng", username: "nguyễn anh hoàng", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư An toàn" },
+  { stt: 8, empId: "emp_012697", name: "Nguyễn Ngọc Hùng", username: "nguyễn ngọc hùng", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 9, empId: "emp_012665", name: "Nguyễn Văn Huy", username: "nguyễn văn huy", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 10, empId: "emp_012350", name: "Lê Ngọc Tuấn Nhật", username: "lê ngọc tuấn nhật", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 11, empId: "emp_012139", name: "Võ Hùng Phi", username: "võ hùng phi", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 12, empId: "emp_012209", name: "Hồ Hữu Minh Tâm", username: "hồ hữu minh tâm", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 13, empId: "emp_012323", name: "Đỗ Xuân Vinh", username: "đỗ xuân vinh", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 14, empId: "emp_010622", name: "Trần Tấn Phát", username: "trần tấn phát", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Kỹ sư CNTT" },
+  { stt: 15, empId: "emp_010113", name: "Hồ Đức Phương", username: "hồ đức phương", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
+  { stt: 16, empId: "emp_006110", name: "Võ Minh Tâm", username: "võ minh tâm", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Chuyên viên Kỹ thuật" },
+  { stt: 17, empId: "emp_012763", name: "Vũ Thị Linh Chi", username: "vũ thị linh chi", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Chuyên viên CNTT" },
+  { stt: 18, empId: "emp_012317", name: "Nguyễn Hồng Ngân", username: "nguyễn hồng ngân", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Chuyên viên CNTT" }
+];
+
+function getSpreadsheet() {
+  var ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) { ss = null; }
+  if (!ss) {
+    try { ss = SpreadsheetApp.openById(SHEET_ID); } catch(e) { return null; }
+  }
+  return ss;
+}
+
+// ==============================================================================
+// GET REQUEST: Trả về dữ liệu công việc và danh sách mật khẩu tài khoản
+// ==============================================================================
 function doGet(e) {
   try {
     var props = PropertiesService.getScriptProperties();
     var savedJson = props.getProperty(STORAGE_PROP_KEY);
     var data = savedJson ? JSON.parse(savedJson) : null;
+
+    var ss = getSpreadsheet();
+    var customPasswords = ss ? readPasswordsFromSheet(ss) : {};
+
     var response = {
       status: 'success',
       hasData: !!data,
       data: data,
+      customPasswords: customPasswords,
       timestamp: data ? data.lastModified : new Date().toISOString()
     };
     return createOutput(response, e);
@@ -36,6 +82,9 @@ function doGet(e) {
   }
 }
 
+// ==============================================================================
+// POST REQUEST: Nhận dữ liệu công việc hoặc cập nhật đổi mật khẩu
+// ==============================================================================
 function doPost(e) {
   try {
     var payloadStr = '';
@@ -45,19 +94,49 @@ function doPost(e) {
       payloadStr = e.parameter.data;
     }
     if (!payloadStr) {
-      return createOutput({ status: 'error', message: 'Không có dữ liệu' }, e);
+      return createOutput({ status: 'error', message: 'Không có dữ liệu gửi đến' }, e);
     }
+
     var parsed = JSON.parse(payloadStr);
-    if (!parsed || !parsed.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
-      return createOutput({ status: 'error', message: 'Dữ liệu không hợp lệ' }, e);
+    var ss = getSpreadsheet();
+
+    // 1. Trường hợp đổi mật khẩu riêng lẻ
+    if (parsed.action === 'change_password') {
+      if (ss && parsed.empId && parsed.newPassword) {
+        updatePasswordInSheet(ss, parsed.empId, parsed.newPassword);
+      }
+      return createOutput({
+        status: 'success',
+        message: 'Đã cập nhật mật khẩu vào Google Sheet thành công!',
+        empId: parsed.empId
+      }, e);
     }
+
+    // 2. Trường hợp đồng bộ toàn bộ dữ liệu bảng công việc
+    if (!parsed || !parsed.tasks || !Array.isArray(parsed.tasks)) {
+      return createOutput({ status: 'error', message: 'Dữ liệu công việc không hợp lệ' }, e);
+    }
+
     parsed.lastModified = new Date().toISOString();
     var props = PropertiesService.getScriptProperties();
     props.setProperty(STORAGE_PROP_KEY, JSON.stringify(parsed));
-    try { syncToSpreadsheet(parsed); } catch (sheetErr) { console.warn('Sheet sync error:', sheetErr); }
+
+    if (ss) {
+      try { syncToSpreadsheet(parsed); } catch (sheetErr) { console.warn('Lỗi ghi sheet công việc:', sheetErr); }
+      try {
+        if (parsed.customPasswords) {
+          for (var id in parsed.customPasswords) {
+            updatePasswordInSheet(ss, id, parsed.customPasswords[id]);
+          }
+        } else {
+          getOrCreateAccountsSheet(ss);
+        }
+      } catch (accErr) { console.warn('Lỗi ghi sheet tài khoản:', accErr); }
+    }
+
     return createOutput({
       status: 'success',
-      message: 'Đã đồng bộ thành công!',
+      message: 'Đã đồng bộ công việc và tài khoản thành công!',
       lastModified: parsed.lastModified
     }, e);
   } catch (error) {
@@ -65,16 +144,16 @@ function doPost(e) {
   }
 }
 
+// ==============================================================================
+// ĐỒNG BỘ TAB "PHÂN CÔNG TRỰC TUYẾN"
+// ==============================================================================
 function syncToSpreadsheet(data) {
   if (!data || !data.tasks) return;
-  var ss = null;
-  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) { ss = null; }
-  if (!ss) {
-    try { ss = SpreadsheetApp.openById(SHEET_ID); } catch(e) { return; }
-  }
-  var TARGET = 'Phân công trực tuyến';
-  var sheet = ss.getSheetByName(TARGET);
-  if (!sheet) sheet = ss.insertSheet(TARGET);
+  var ss = getSpreadsheet();
+  if (!ss) return;
+
+  var sheet = ss.getSheetByName(TASKS_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(TASKS_SHEET_NAME);
 
   var headers = ['STT', 'Tên công việc', 'Nội dung chi tiết', 'Nhóm công tác', 'Phụ trách', 'Theo dõi', 'Thời hạn', 'Trạng thái', 'Ưu tiên', 'Cập nhật'];
   var rows = [];
@@ -122,6 +201,132 @@ function syncToSpreadsheet(data) {
   sheet.setColumnWidth(10, 160);
 }
 
+// ==============================================================================
+// ĐỒNG BỘ TAB "TÀI KHOẢN" (QUẢN TRỊ XEM MẬT KHẨU & TÀI KHOẢN)
+// ==============================================================================
+function getOrCreateAccountsSheet(ss) {
+  var sheet = ss.getSheetByName(ACCOUNTS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(ACCOUNTS_SHEET_NAME);
+    initAccountsSheet(sheet);
+  }
+  return sheet;
+}
+
+function initAccountsSheet(sheet) {
+  var headers = ['STT', 'Mã nhân viên', 'Họ và tên', 'Tên đăng nhập', 'Mật khẩu', 'Vai trò', 'Tổ công tác', 'Chức danh', 'Thời gian cập nhật'];
+  var rows = DEFAULT_ACCOUNTS.map(function(acc) {
+    return [
+      acc.stt,
+      acc.empId,
+      acc.name,
+      acc.username,
+      acc.password,
+      acc.role,
+      acc.team,
+      acc.position,
+      'Mặc định ban đầu'
+    ];
+  });
+
+  sheet.clearContents();
+  var hr = sheet.getRange(1, 1, 1, headers.length);
+  hr.setValues([headers]);
+  hr.setBackground('#003399');
+  hr.setFontColor('#ffffff');
+  hr.setFontWeight('bold');
+  hr.setHorizontalAlignment('center');
+  sheet.setFrozenRows(1);
+
+  if (rows.length > 0) {
+    var range = sheet.getRange(2, 1, rows.length, headers.length);
+    range.setValues(rows);
+    range.setVerticalAlignment('middle');
+    // Căn giữa các cột STT, Mã NV, Mật khẩu, Vai trò, Cập nhật
+    sheet.getRange(2, 1, rows.length, 2).setHorizontalAlignment('center');
+    sheet.getRange(2, 5, rows.length, 2).setHorizontalAlignment('center');
+    sheet.getRange(2, 9, rows.length, 1).setHorizontalAlignment('center');
+    // Đánh dấu nổi bật cột Mật khẩu để người quản trị dễ xem
+    sheet.getRange(2, 5, rows.length, 1).setBackground('#fef9c3').setFontWeight('bold');
+  }
+
+  sheet.setColumnWidth(1, 50);  // STT
+  sheet.setColumnWidth(2, 110); // Mã NV
+  sheet.setColumnWidth(3, 200); // Họ và tên
+  sheet.setColumnWidth(4, 180); // Tên đăng nhập
+  sheet.setColumnWidth(5, 140); // Mật khẩu
+  sheet.setColumnWidth(6, 140); // Vai trò
+  sheet.setColumnWidth(7, 160); // Tổ công tác
+  sheet.setColumnWidth(8, 180); // Chức danh
+  sheet.setColumnWidth(9, 170); // Thời gian cập nhật
+}
+
+function updatePasswordInSheet(ss, empId, newPassword) {
+  var sheet = getOrCreateAccountsSheet(ss);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  var nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][1]).trim() === String(empId).trim()) { // Cột 2 là Mã NV
+      sheet.getRange(i + 2, 5).setValue(String(newPassword));    // Cột 5 là Mật khẩu
+      sheet.getRange(i + 2, 5).setBackground('#bbf7d0');        // Màu xanh lá nhạt báo hiệu đã đổi mật khẩu
+      sheet.getRange(i + 2, 9).setValue(nowStr);                 // Cột 9 là Thời gian cập nhật
+      break;
+    }
+  }
+
+  // Cập nhật bộ nhớ đệm ScriptProperties
+  var props = PropertiesService.getScriptProperties();
+  var savedPw = props.getProperty(PASSWORDS_PROP_KEY);
+  var pwMap = savedPw ? JSON.parse(savedPw) : {};
+  pwMap[empId] = String(newPassword);
+  props.setProperty(PASSWORDS_PROP_KEY, JSON.stringify(pwMap));
+}
+
+function readPasswordsFromSheet(ss) {
+  var pwMap = {};
+  try {
+    var sheet = ss.getSheetByName(ACCOUNTS_SHEET_NAME);
+    if (!sheet) {
+      sheet = getOrCreateAccountsSheet(ss);
+    }
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      // Đọc cột Mã NV (2) đến Mật khẩu (5)
+      var data = sheet.getRange(2, 2, lastRow - 1, 4).getValues();
+      for (var i = 0; i < data.length; i++) {
+        var empId = String(data[i][0]).trim();
+        var pw = String(data[i][3]).trim();
+        if (empId && pw) {
+          pwMap[empId] = pw;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('readPasswords error:', e);
+  }
+
+  // Kết hợp với bộ nhớ đệm nếu có
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var savedPw = props.getProperty(PASSWORDS_PROP_KEY);
+    if (savedPw) {
+      var cached = JSON.parse(savedPw);
+      for (var k in cached) {
+        if (!pwMap[k]) pwMap[k] = cached[k];
+      }
+    }
+  } catch (e) {}
+
+  return pwMap;
+}
+
+// ==============================================================================
+// TIỆN ÍCH TRẢ VỀ JSON / JSONP
+// ==============================================================================
 function createOutput(dataObj, e) {
   var jsonStr = JSON.stringify(dataObj);
   var callback = e && e.parameter && e.parameter.callback;
@@ -132,13 +337,15 @@ function createOutput(dataObj, e) {
   }
 }
 
-function testSync() {
-  var props = PropertiesService.getScriptProperties();
-  var saved = props.getProperty(STORAGE_PROP_KEY);
-  if (saved) {
-    syncToSpreadsheet(JSON.parse(saved));
-    Logger.log('OK - ' + JSON.parse(saved).tasks.length + ' tasks');
-  } else {
-    Logger.log('No data');
+// ==============================================================================
+// HÀM CHẠY THỬ NGHIỆM TẠO TAB "TÀI KHOẢN" NGAY TRÊN GOOGLE SCRIPT
+// ==============================================================================
+function initSheetAndAccounts() {
+  var ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log('Không mở được Google Spreadsheet: ' + SHEET_ID);
+    return;
   }
+  var sheet = getOrCreateAccountsSheet(ss);
+  Logger.log('✅ Đã tạo/kiểm tra xong tab "' + ACCOUNTS_SHEET_NAME + '" với ' + (sheet.getLastRow() - 1) + ' tài khoản!');
 }

@@ -232,7 +232,14 @@
   function saveData(showToast = true, skipCloud = false) {
     const timestamp = new Date().toISOString();
     state.lastSavedAt = timestamp;
-    const payload = { categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: timestamp, lastModified: timestamp };
+    const payload = {
+      categories: state.categories,
+      employees: state.employees,
+      tasks: state.tasks,
+      customPasswords: getCustomPasswords(),
+      savedAt: timestamp,
+      lastModified: timestamp
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     if (showToast) notify('success', 'Đã lưu dữ liệu!');
     if (state.cloudApiUrl && !skipCloud) {
@@ -279,6 +286,15 @@
   }
 
   function handleCloudResponse(response, manual) {
+    // Sync passwords from Google Sheet
+    if (response && response.customPasswords && typeof response.customPasswords === 'object') {
+      try {
+        const localPw = getCustomPasswords();
+        const merged = Object.assign({}, localPw, response.customPasswords);
+        localStorage.setItem(CUSTOM_PASSWORDS_KEY, JSON.stringify(merged));
+      } catch(e) {}
+    }
+
     if (!response || response.status !== 'success' || !response.hasData || !response.data) {
       state.initialCloudSyncDone = true;
       if (manual) notify('info', 'Dữ liệu máy đã mới nhất');
@@ -441,13 +457,28 @@
       return;
     }
 
-    // Save new password
+    // Save new password locally
     customPasswords[currentSession.empId] = newPw;
     localStorage.setItem(CUSTOM_PASSWORDS_KEY, JSON.stringify(customPasswords));
 
+    // Push new password directly to Google Sheet tab "Tài khoản"
+    if (state.cloudApiUrl) {
+      const pwPayload = JSON.stringify({
+        action: 'change_password',
+        empId: currentSession.empId,
+        username: currentSession.username,
+        newPassword: newPw,
+        timestamp: new Date().toISOString()
+      });
+      fetch(state.cloudApiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: pwPayload })
+        .catch(() => {
+          fetch(state.cloudApiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: pwPayload }).catch(() => {});
+        });
+    }
+
     el.passwordModal.classList.remove('active');
     el.passwordForm.reset();
-    notify('success', '🔒 Đã đổi mật khẩu thành công!');
+    notify('success', '🔒 Đã đổi mật khẩu & đồng bộ lên Google Sheet!');
   }
 
   function switchView(viewName) {

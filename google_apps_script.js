@@ -62,19 +62,41 @@ function getSpreadsheet() {
 // ==============================================================================
 function doGet(e) {
   try {
+    var ss = getSpreadsheet();
+
+    // 1. Hỗ trợ đổi mật khẩu qua GET / JSONP / Beacon (tránh hoàn toàn chặn CORS)
+    if (e && e.parameter && (e.parameter.action === 'change_password' || e.parameter.action === 'changePassword')) {
+      var empId = e.parameter.empId || e.parameter.username;
+      var newPassword = e.parameter.newPassword || e.parameter.password;
+      if (ss && empId && newPassword) {
+        updatePasswordInSheet(ss, empId, newPassword);
+      }
+      return createOutput({
+        status: 'success',
+        message: 'Đã cập nhật mật khẩu vào Google Sheet thành công!',
+        empId: empId
+      }, e);
+    }
+
+    // 2. Lấy dữ liệu công việc và danh sách mật khẩu
     var props = PropertiesService.getScriptProperties();
     var savedJson = props.getProperty(STORAGE_PROP_KEY);
     var data = savedJson ? JSON.parse(savedJson) : null;
 
-    var ss = getSpreadsheet();
     var customPasswords = ss ? readPasswordsFromSheet(ss) : {};
+
+    // 3. ĐỌC VÀ ĐỒNG BỘ TRỰC TIẾP TỪ TAB "PHÂN CÔNG TRỰC TUYẾN" CỦA GOOGLE SHEET
+    // Giúp phản ánh chính xác số công việc thực tế trên Sheet (ví dụ khi người dùng xóa bớt trên Sheet)
+    if (ss) {
+      data = syncTasksFromSheet(ss, data);
+    }
 
     var response = {
       status: 'success',
-      hasData: !!data,
+      hasData: !!(data && data.tasks && data.tasks.length > 0),
       data: data,
       customPasswords: customPasswords,
-      timestamp: data ? data.lastModified : new Date().toISOString()
+      timestamp: (data && data.lastModified) ? data.lastModified : new Date().toISOString()
     };
     return createOutput(response, e);
   } catch (error) {
@@ -272,15 +294,22 @@ function initAccountsSheet(sheet) {
 }
 
 function updatePasswordInSheet(ss, empId, newPassword) {
+  if (!ss) ss = getSpreadsheet();
+  if (!ss) return;
   var sheet = getOrCreateAccountsSheet(ss);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
   var values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
   var nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+  var targetId = String(empId || '').trim().toLowerCase();
 
   for (var i = 0; i < values.length; i++) {
-    if (String(values[i][1]).trim() === String(empId).trim()) { // Cột 2 là Mã NV
+    var rowEmpId = String(values[i][1]).trim().toLowerCase();   // Cột 2: Mã NV
+    var rowName = String(values[i][2]).trim().toLowerCase();    // Cột 3: Họ tên
+    var rowUsername = String(values[i][3]).trim().toLowerCase(); // Cột 4: Tên đăng nhập
+
+    if (rowEmpId === targetId || rowUsername === targetId || rowName === targetId) {
       sheet.getRange(i + 2, 5).setValue(String(newPassword));    // Cột 5 là Mật khẩu
       sheet.getRange(i + 2, 5).setBackground('#bbf7d0');        // Màu xanh lá nhạt báo hiệu đã đổi mật khẩu
       sheet.getRange(i + 2, 9).setValue(nowStr);                 // Cột 9 là Thời gian cập nhật
@@ -289,11 +318,13 @@ function updatePasswordInSheet(ss, empId, newPassword) {
   }
 
   // Cập nhật bộ nhớ đệm ScriptProperties
-  var props = PropertiesService.getScriptProperties();
-  var savedPw = props.getProperty(PASSWORDS_PROP_KEY);
-  var pwMap = savedPw ? JSON.parse(savedPw) : {};
-  pwMap[empId] = String(newPassword);
-  props.setProperty(PASSWORDS_PROP_KEY, JSON.stringify(pwMap));
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var savedPw = props.getProperty(PASSWORDS_PROP_KEY);
+    var pwMap = savedPw ? JSON.parse(savedPw) : {};
+    pwMap[empId] = String(newPassword);
+    props.setProperty(PASSWORDS_PROP_KEY, JSON.stringify(pwMap));
+  } catch (e) {}
 }
 
 function readPasswordsFromSheet(ss) {
@@ -335,6 +366,130 @@ function readPasswordsFromSheet(ss) {
 }
 
 // ==============================================================================
+// ĐỒNG BỘ HAI CHIỀU: ĐỌC DANH SÁCH CÔNG VIỆC TRỰC TIẾP TỪ GOOGLE SHEET
+// ==============================================================================
+function syncTasksFromSheet(ss, data) {
+  var sheet = ss.getSheetByName(TASKS_SHEET_NAME);
+  if (!sheet) return data;
+
+  var lastRow = sheet.getLastRow();
+  var existingTasks = (data && data.tasks && Array.isArray(data.tasks)) ? data.tasks : [];
+
+  // Nếu sheet chỉ có dòng tiêu đề (lastRow <= 1) hoặc trống: người dùng đã xóa hết việc trên Sheet
+  if (lastRow < 2) {
+    if (data) {
+      data.tasks = [];
+      data.lastModified = new Date().toISOString();
+      try { PropertiesService.getScriptProperties().setProperty(STORAGE_PROP_KEY, JSON.stringify(data)); } catch (e) {}
+    }
+    return data;
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  var existingTaskMap = {};
+  existingTasks.forEach(function(t) {
+    if (t.id) existingTaskMap[t.id] = t;
+    if (t.title) existingTaskMap[t.title.trim().toLowerCase()] = t;
+  });
+
+  var syncedTasks = [];
+
+  for (var i = 0; i < values.length; i++) {
+    var row = values[i];
+    var stt = String(row[0] || (i + 1)).trim();
+    var title = String(row[1] || '').trim();
+    var detail = String(row[2] || '').trim();
+    var category = String(row[3] || '').trim();
+    var assigneeText = String(row[4] || '').trim();
+    var followerText = String(row[5] || '').trim();
+    var deadlineVal = row[6];
+    var deadline = '';
+    if (deadlineVal) {
+      if (deadlineVal instanceof Date) {
+        deadline = Utilities.formatDate(deadlineVal, "Asia/Ho_Chi_Minh", "dd/MM/yyyy");
+      } else {
+        deadline = String(deadlineVal).trim();
+      }
+    }
+    var statusText = String(row[7] || '').trim();
+    var priorityText = String(row[8] || '').trim();
+
+    if (!title) continue; // Bỏ qua dòng trống không có tên
+
+    var matchKey = title.toLowerCase();
+    var existing = existingTaskMap[matchKey];
+
+    var taskId = existing ? existing.id : ('task_sheet_' + (i + 1) + '_' + Date.now());
+    var isCompleted = statusText.indexOf('Đã hoàn tất') !== -1 || statusText.indexOf('completed') !== -1 || statusText.indexOf('Xong') !== -1;
+    var isUrgent = priorityText.indexOf('Khẩn') !== -1 || priorityText.indexOf('urgent') !== -1;
+    var inStaging = (assigneeText === 'Chưa phân công' || !assigneeText);
+
+    // Map tên nhân viên sang assignee_ids
+    var assigneeIds = [];
+    if (!inStaging && assigneeText) {
+      DEFAULT_ACCOUNTS.forEach(function(acc) {
+        if (assigneeText.toLowerCase().indexOf(acc.name.toLowerCase()) !== -1 || acc.name.toLowerCase().indexOf(assigneeText.toLowerCase()) !== -1) {
+          if (assigneeIds.indexOf(acc.empId) === -1) assigneeIds.push(acc.empId);
+        }
+      });
+      if (assigneeIds.length === 0 && existing && existing.assignee_ids) {
+        assigneeIds = existing.assignee_ids;
+      }
+    }
+
+    var followerIds = [];
+    if (followerText) {
+      DEFAULT_ACCOUNTS.forEach(function(acc) {
+        if (followerText.toLowerCase().indexOf(acc.name.toLowerCase()) !== -1 || acc.name.toLowerCase().indexOf(followerText.toLowerCase()) !== -1) {
+          if (followerIds.indexOf(acc.empId) === -1) followerIds.push(acc.empId);
+        }
+      });
+    }
+
+    var taskObj = {
+      id: taskId,
+      stt: stt,
+      title: title,
+      detail: detail,
+      category: category,
+      category_id: existing ? existing.category_id : 'cat_cntt',
+      section: existing ? existing.section : 'B. Công tác Tổ CNTT',
+      assignee_ids: assigneeIds,
+      assignee_text: inStaging ? '' : assigneeText,
+      follower_ids: followerIds,
+      follower_text: followerText,
+      deadline: deadline,
+      status: isCompleted ? 'completed' : 'in_progress',
+      priority: isUrgent ? 'urgent' : 'normal',
+      in_staging: inStaging,
+      sub_assignments: (existing && existing.sub_assignments) ? existing.sub_assignments : {},
+      created_by: (existing && existing.created_by) ? existing.created_by : (assigneeIds[0] || 'leader'),
+      completed_at: isCompleted ? ((existing && existing.completed_at) ? existing.completed_at : new Date().toISOString()) : null
+    };
+
+    syncedTasks.push(taskObj);
+  }
+
+  if (!data) {
+    data = {
+      categories: [],
+      employees: [],
+      tasks: syncedTasks,
+      lastModified: new Date().toISOString()
+    };
+  } else {
+    data.tasks = syncedTasks;
+    data.lastModified = new Date().toISOString();
+  }
+
+  try {
+    PropertiesService.getScriptProperties().setProperty(STORAGE_PROP_KEY, JSON.stringify(data));
+  } catch (e) {}
+
+  return data;
+}
+
+// ==============================================================================
 // TIỆN ÍCH TRẢ VỀ JSON / JSONP
 // ==============================================================================
 function createOutput(dataObj, e) {
@@ -348,7 +503,7 @@ function createOutput(dataObj, e) {
 }
 
 // ==============================================================================
-// HÀM CHẠY THỬ NGHIỆM TẠO TAB "TÀI KHOẢN" NGAY TRÊN GOOGLE SCRIPT
+// HÀM CHẠY THỬ NGHIỆM TRÊN GOOGLE APPS SCRIPT
 // ==============================================================================
 function initSheetAndAccounts() {
   var ss = getSpreadsheet();
@@ -358,4 +513,17 @@ function initSheetAndAccounts() {
   }
   var sheet = getOrCreateAccountsSheet(ss);
   Logger.log('✅ Đã tạo/kiểm tra xong tab "' + ACCOUNTS_SHEET_NAME + '" với ' + (sheet.getLastRow() - 1) + ' tài khoản!');
+}
+
+function syncNowFromSheet() {
+  var ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log('Không mở được Google Spreadsheet: ' + SHEET_ID);
+    return;
+  }
+  var props = PropertiesService.getScriptProperties();
+  var savedJson = props.getProperty(STORAGE_PROP_KEY);
+  var data = savedJson ? JSON.parse(savedJson) : null;
+  var synced = syncTasksFromSheet(ss, data);
+  Logger.log('✅ Đã đồng bộ thành công! Hiện tại có ' + synced.tasks.length + ' công việc khớp từ Google Sheet.');
 }

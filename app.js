@@ -301,20 +301,25 @@
       updateSyncUI('synced'); return;
     }
     const rd = response.data;
-    if (!rd.tasks || !Array.isArray(rd.tasks) || rd.tasks.length === 0) { state.initialCloudSyncDone = true; return; }
+    if (!rd.tasks || !Array.isArray(rd.tasks)) { state.initialCloudSyncDone = true; return; }
+    
+    // So khớp thời gian và số lượng công việc: nếu dữ liệu remote mới hơn hoặc số công việc khác biệt (ví dụ người dùng xóa bớt trên Sheet)
     const remoteTime = new Date(rd.lastModified || rd.savedAt || 0).getTime();
     const localTime = state.lastSavedAt ? new Date(state.lastSavedAt).getTime() : 0;
-    const shouldApply = manual || (!state.initialCloudSyncDone && !state.hasUnsavedLocalChanges) || !state.lastSavedAt || state.lastSavedAt === 0 || (remoteTime > localTime && !state.hasUnsavedLocalChanges);
+    const shouldApply = manual || !state.initialCloudSyncDone || !state.lastSavedAt || state.lastSavedAt === 0 || 
+                        (remoteTime > localTime && !state.hasUnsavedLocalChanges) || 
+                        (rd.tasks.length !== state.tasks.length && !state.hasUnsavedLocalChanges);
+    
     state.initialCloudSyncDone = true;
     if (shouldApply) {
       state.tasks = rd.tasks;
-      if (rd.categories) state.categories = rd.categories;
-      if (rd.employees) state.employees = rd.employees;
+      if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) state.categories = rd.categories;
+      if (rd.employees && Array.isArray(rd.employees) && rd.employees.length > 0) state.employees = rd.employees;
       state.lastSavedAt = rd.lastModified || rd.savedAt || new Date().toISOString();
       state.hasUnsavedLocalChanges = false;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: state.lastSavedAt }));
       render(); updateQuickStats(); updateSyncUI('synced');
-      if (manual) notify('success', 'Đã cập nhật từ máy chủ!');
+      if (manual) notify('success', 'Đã cập nhật từ Google Sheet!');
     } else { updateSyncUI('synced'); }
   }
 
@@ -470,10 +475,18 @@
         newPassword: newPw,
         timestamp: new Date().toISOString()
       });
+      // 1. POST request
       fetch(state.cloudApiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: pwPayload })
         .catch(() => {
           fetch(state.cloudApiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: pwPayload }).catch(() => {});
         });
+      // 2. GET Beacon để hoàn toàn không bị CORS và gọi thực thi ngay lập tức trên Apps Script
+      try {
+        const sep = state.cloudApiUrl.includes('?') ? '&' : '?';
+        const beaconUrl = `${state.cloudApiUrl}${sep}action=change_password&empId=${encodeURIComponent(currentSession.empId)}&username=${encodeURIComponent(currentSession.username || '')}&newPassword=${encodeURIComponent(newPw)}&_t=${Date.now()}`;
+        const img = new Image();
+        img.src = beaconUrl;
+      } catch(e) {}
     }
 
     el.passwordModal.classList.remove('active');

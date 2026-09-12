@@ -73,6 +73,7 @@
     tabCategory: document.getElementById('tabCategory'),
     tabDashboard: document.getElementById('tabDashboard'),
     tabReport: document.getElementById('tabReport'),
+    tabTechStats: document.getElementById('tabTechStats'),
     headerNav: document.getElementById('headerNav'),
     viewTabs: document.getElementById('viewTabs'),
     quickTotal: document.getElementById('quickTotal'),
@@ -178,15 +179,17 @@
       if (el.tabCategory) el.tabCategory.style.display = '';
       if (el.tabDashboard) el.tabDashboard.style.display = '';
       if (el.tabReport) el.tabReport.style.display = '';
+      if (el.tabTechStats) el.tabTechStats.style.display = '';
       if (el.headerNav) el.headerNav.style.display = '';
     } else {
-      // Staff: show headerNav with personal tab and report tab!
+      // Staff: show headerNav with personal tab, report tab, and tech stats tab!
       if (el.headerNav) el.headerNav.style.display = '';
       if (el.tabPersonal) el.tabPersonal.style.display = '';
       if (el.tabStaff) el.tabStaff.style.display = 'none';
       if (el.tabCategory) el.tabCategory.style.display = 'none';
       if (el.tabDashboard) el.tabDashboard.style.display = 'none';
       if (el.tabReport) el.tabReport.style.display = '';
+      if (el.tabTechStats) el.tabTechStats.style.display = '';
       el.stagingSidebar.classList.add('collapsed');
       el.toggleSidebarBtn.style.display = 'none';
       el.searchBoxWrap.style.display = 'none';

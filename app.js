@@ -47,7 +47,13 @@
     lastSavedAt: null,
     syncDebounceTimer: null,
     hasUnsavedLocalChanges: false,
-    initialCloudSyncDone: false
+    initialCloudSyncDone: false,
+    // Weekly report state
+    reportWeekOffset: 0,
+    reportMode: 'week', // 'week' or 'all'
+    reportTeamFilter: 'ALL',
+    reportStaffSearch: '',
+    reportExpandedStaff: {}
   };
 
   // =========================================================================
@@ -62,9 +68,11 @@
     searchInput: document.getElementById('searchInput'),
     searchClear: document.getElementById('searchClear'),
     searchBoxWrap: document.getElementById('searchBoxWrap'),
+    tabPersonal: document.getElementById('tabPersonal'),
     tabStaff: document.getElementById('tabStaff'),
     tabCategory: document.getElementById('tabCategory'),
     tabDashboard: document.getElementById('tabDashboard'),
+    tabReport: document.getElementById('tabReport'),
     headerNav: document.getElementById('headerNav'),
     viewTabs: document.getElementById('viewTabs'),
     quickTotal: document.getElementById('quickTotal'),
@@ -165,10 +173,25 @@
       el.resetBtn.style.display = '';
       el.toggleSidebarBtn.style.display = '';
       el.stagingSidebar.classList.remove('collapsed');
+      if (el.tabPersonal) el.tabPersonal.style.display = 'none';
+      if (el.tabStaff) el.tabStaff.style.display = '';
+      if (el.tabCategory) el.tabCategory.style.display = '';
+      if (el.tabDashboard) el.tabDashboard.style.display = '';
+      if (el.tabReport) el.tabReport.style.display = '';
+      if (el.headerNav) el.headerNav.style.display = '';
     } else {
-      // Staff: hide leader controls, show personal view
-      el.headerNav.style.display = 'none';
+      // Staff: show headerNav with personal tab and report tab!
+      if (el.headerNav) el.headerNav.style.display = '';
+      if (el.tabPersonal) el.tabPersonal.style.display = '';
+      if (el.tabStaff) el.tabStaff.style.display = 'none';
+      if (el.tabCategory) el.tabCategory.style.display = 'none';
+      if (el.tabDashboard) el.tabDashboard.style.display = 'none';
+      if (el.tabReport) el.tabReport.style.display = '';
+      el.stagingSidebar.classList.add('collapsed');
+      el.toggleSidebarBtn.style.display = 'none';
       el.searchBoxWrap.style.display = 'none';
+      const quickPendingPill = document.getElementById('quickPending')?.closest('.stat-pill');
+      if (quickPendingPill) quickPendingPill.style.display = 'none';
     }
   }
 
@@ -321,11 +344,14 @@
       el.searchInput.value = ''; state.searchQuery = ''; el.searchClear.style.display = 'none'; render();
     });
 
-    // Tabs (leader)
+    // Navigation Tabs (leader & staff)
+    if (el.tabPersonal) el.tabPersonal.addEventListener('click', () => switchView('personal'));
+    if (el.tabStaff) el.tabStaff.addEventListener('click', () => switchView('staff'));
+    if (el.tabCategory) el.tabCategory.addEventListener('click', () => switchView('category'));
+    if (el.tabDashboard) el.tabDashboard.addEventListener('click', () => switchView('dashboard'));
+    if (el.tabReport) el.tabReport.addEventListener('click', () => switchView('report'));
+
     if (isLeader) {
-      el.tabStaff.addEventListener('click', () => switchView('staff'));
-      el.tabCategory.addEventListener('click', () => switchView('category'));
-      el.tabDashboard.addEventListener('click', () => switchView('dashboard'));
       el.toggleSidebarBtn.addEventListener('click', () => el.stagingSidebar.classList.toggle('collapsed'));
       el.saveBtn.addEventListener('click', () => saveData(true));
       el.resetBtn.addEventListener('click', resetToDefault);
@@ -397,8 +423,8 @@
       return;
     }
 
-    if (newPw.length < 6) {
-      errorBox.textContent = '⚠️ Mật khẩu mới phải có tối thiểu 6 ký tự!';
+    if (newPw.length < 4) {
+      errorBox.textContent = '⚠️ Mật khẩu mới phải có tối thiểu 4 ký tự!';
       errorBox.style.display = 'block';
       return;
     }
@@ -426,10 +452,13 @@
 
   function switchView(viewName) {
     state.activeView = viewName;
-    el.tabStaff.classList.toggle('active', viewName === 'staff');
-    el.tabCategory.classList.toggle('active', viewName === 'category');
-    el.tabDashboard.classList.toggle('active', viewName === 'dashboard');
+    if (el.tabPersonal) el.tabPersonal.classList.toggle('active', viewName === 'personal');
+    if (el.tabStaff) el.tabStaff.classList.toggle('active', viewName === 'staff');
+    if (el.tabCategory) el.tabCategory.classList.toggle('active', viewName === 'category');
+    if (el.tabDashboard) el.tabDashboard.classList.toggle('active', viewName === 'dashboard');
+    if (el.tabReport) el.tabReport.classList.toggle('active', viewName === 'report');
     render();
+    updateHeaderHeight();
   }
 
   function resetToDefault() {
@@ -510,16 +539,27 @@
     else if (state.activeView === 'category') renderCategoryView();
     else if (state.activeView === 'dashboard') renderDashboardView();
     else if (state.activeView === 'personal') renderPersonalView();
+    else if (state.activeView === 'report') renderReportView();
   }
 
   function updateQuickStats() {
-    const total = state.tasks.length;
-    const completed = state.tasks.filter(t => t.status === 'completed').length;
-    const pending = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0).length;
-    el.quickTotal.textContent = total;
-    el.quickAssigned.textContent = total - pending;
-    el.quickCompleted.textContent = completed;
-    el.quickPending.textContent = pending;
+    if (!isLeader) {
+      const myTasks = state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(currentEmpId));
+      const completed = myTasks.filter(t => t.status === 'completed').length;
+      const inProgress = myTasks.filter(t => t.status !== 'completed').length;
+      if (el.quickTotal) el.quickTotal.textContent = myTasks.length;
+      if (el.quickAssigned) el.quickAssigned.textContent = inProgress;
+      if (el.quickCompleted) el.quickCompleted.textContent = completed;
+      if (el.quickPending) el.quickPending.textContent = 0;
+    } else {
+      const total = state.tasks.length;
+      const completed = state.tasks.filter(t => t.status === 'completed').length;
+      const pending = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0).length;
+      if (el.quickTotal) el.quickTotal.textContent = total;
+      if (el.quickAssigned) el.quickAssigned.textContent = total - pending;
+      if (el.quickCompleted) el.quickCompleted.textContent = completed;
+      if (el.quickPending) el.quickPending.textContent = pending;
+    }
   }
 
   // =========================================================================
@@ -782,14 +822,28 @@
       btn.addEventListener('click', () => {
         const taskId = btn.dataset.taskId;
         const task = state.tasks.find(t => t.id === taskId);
-        if (task) { task.status = 'completed'; saveData(false); render(); updateQuickStats(); notify('success', 'Đã đánh dấu hoàn thành!'); }
+        if (task) {
+          task.status = 'completed';
+          task.completed_at = new Date().toISOString();
+          saveData(false);
+          render();
+          updateQuickStats();
+          notify('success', 'Đã đánh dấu hoàn thành!');
+        }
       });
     });
     container.querySelectorAll('[data-action="reopen"]').forEach(btn => {
       btn.addEventListener('click', () => {
         const taskId = btn.dataset.taskId;
         const task = state.tasks.find(t => t.id === taskId);
-        if (task) { task.status = 'in_progress'; saveData(false); render(); updateQuickStats(); notify('info', 'Đã mở lại công việc'); }
+        if (task) {
+          task.status = 'in_progress';
+          delete task.completed_at;
+          saveData(false);
+          render();
+          updateQuickStats();
+          notify('info', 'Đã mở lại công việc');
+        }
       });
     });
   }
@@ -812,6 +866,587 @@
           ${mode === 'completed' ? `<button class="btn btn-outline" data-action="reopen" data-task-id="${task.id}">↩ Mở lại</button>` : ''}
         </div>
       </div>`;
+  }
+
+  // =========================================================================
+  // WEEKLY PRODUCTIVITY REPORT VIEW
+  // =========================================================================
+  function parseTaskDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const s = dateStr.trim();
+    const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m1) return new Date(parseInt(m1[3], 10), parseInt(m1[2], 10) - 1, parseInt(m1[1], 10));
+    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (m2) return new Date(2026, parseInt(m2[2], 10) - 1, parseInt(m2[1], 10));
+    const m3 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m3) return new Date(parseInt(m3[1], 10), parseInt(m3[2], 10) - 1, parseInt(m3[3], 10));
+    return null;
+  }
+
+  function getWeekRange(offsetWeeks = 0) {
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (offsetWeeks * 7));
+    const day = target.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const monday = new Date(target.getFullYear(), target.getMonth(), target.getDate() + diffToMon, 0, 0, 0, 0);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+
+    const d = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = dt => `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+
+    let relativeTag = '';
+    if (offsetWeeks === 0) relativeTag = 'Tuần này';
+    else if (offsetWeeks === -1) relativeTag = 'Tuần trước';
+    else if (offsetWeeks === 1) relativeTag = 'Tuần tới';
+    else if (offsetWeeks < -1) relativeTag = `${Math.abs(offsetWeeks)} tuần trước`;
+    else relativeTag = `Sau ${offsetWeeks} tuần`;
+
+    return {
+      monday,
+      sunday,
+      weekNum,
+      year: monday.getFullYear(),
+      startStr: fmt(monday),
+      endStr: fmt(sunday),
+      isCurrentWeek: offsetWeeks === 0,
+      relativeTag,
+      label: `Tuần ${weekNum} (${fmt(monday)} – ${fmt(sunday)})`
+    };
+  }
+
+  function getEmployeeProductivity(empId, weekInfo, mode) {
+    const empTasks = state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(empId));
+    let completed = [];
+    let inProgress = [];
+
+    if (mode === 'all') {
+      completed = empTasks.filter(t => t.status === 'completed');
+      inProgress = empTasks.filter(t => t.status !== 'completed');
+    } else {
+      empTasks.forEach(t => {
+        if (t.status === 'completed') {
+          let matches = false;
+          if (t.completed_at) {
+            const cDate = new Date(t.completed_at);
+            matches = cDate >= weekInfo.monday && cDate <= weekInfo.sunday;
+          } else if (t.deadline) {
+            const dDate = parseTaskDate(t.deadline);
+            matches = dDate ? (dDate >= weekInfo.monday && dDate <= weekInfo.sunday) : weekInfo.isCurrentWeek;
+          } else {
+            matches = weekInfo.isCurrentWeek;
+          }
+          if (matches) completed.push(t);
+        } else {
+          // In progress (dang dở)
+          if (weekInfo.isCurrentWeek) {
+            inProgress.push(t);
+          } else {
+            if (t.deadline) {
+              const dDate = parseTaskDate(t.deadline);
+              if (dDate && dDate >= weekInfo.monday && dDate <= weekInfo.sunday) {
+                inProgress.push(t);
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const total = completed.length + inProgress.length;
+    const rate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
+    return { completed, inProgress, total, rate };
+  }
+
+  function renderReportView() {
+    el.mainContent.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'report-view-container';
+
+    const weekInfo = getWeekRange(state.reportWeekOffset || 0);
+    const mode = state.reportMode || 'week';
+
+    if (isLeader) {
+      renderLeaderReportView(container, weekInfo, mode);
+    } else {
+      renderStaffReportView(container, weekInfo, mode);
+    }
+
+    el.mainContent.appendChild(container);
+  }
+
+  function renderStaffReportView(container, weekInfo, mode) {
+    const emp = state.employees.find(e => e.id === currentEmpId);
+    if (!emp) { container.innerHTML = '<p>Không tìm thấy thông tin nhân viên.</p>'; return; }
+
+    const reportData = getEmployeeProductivity(emp.id, weekInfo, mode);
+
+    let rateColor = '#10b981';
+    if (reportData.rate < 40) rateColor = '#ef4444';
+    else if (reportData.rate < 70) rateColor = '#f59e0b';
+
+    container.innerHTML = `
+      <div class="report-header-bar">
+        <div class="report-title-block">
+          <div class="report-title-icon">📈</div>
+          <div>
+            <h2 class="report-main-title">Báo cáo Năng suất Theo tuần</h2>
+            <p class="report-subtitle">Cá nhân: <strong>${emp.name}</strong> — ${emp.position} (${emp.dept_full || 'Phòng KTAT'})</p>
+          </div>
+        </div>
+
+        <div class="report-nav-controls">
+          <div class="week-nav-group">
+            <button class="btn-week-nav" id="rptPrevWeek" title="Tuần trước">◀</button>
+            <div class="week-badge-display">
+              <span>📅</span>
+              <span>${weekInfo.label}</span>
+              <span class="week-badge-tag ${weekInfo.isCurrentWeek ? '' : 'tag-past'}">${weekInfo.relativeTag}</span>
+            </div>
+            <button class="btn-week-nav" id="rptNextWeek" title="Tuần sau">▶</button>
+            <button class="btn btn-outline btn-sm" id="rptCurrentWeek" style="padding:4px 8px;font-size:11.5px;">Hôm nay</button>
+          </div>
+
+          <div class="report-scope-toggle">
+            <button class="scope-btn ${mode === 'week' ? 'active' : ''}" data-scope="week">Tuần này</button>
+            <button class="scope-btn ${mode === 'all' ? 'active' : ''}" data-scope="all">Tất cả việc</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-kpi-grid">
+        <div class="report-kpi-card kpi-total">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Tổng công việc</span>
+            <span class="report-kpi-value">${reportData.total}</span>
+            <span class="report-kpi-subtext">Được phân công</span>
+          </div>
+          <div class="report-kpi-icon">📋</div>
+        </div>
+        <div class="report-kpi-card kpi-completed">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Đã hoàn thành</span>
+            <span class="report-kpi-value" style="color:#059669;">${reportData.completed.length}</span>
+            <span class="report-kpi-subtext">${reportData.rate}% hoàn tất</span>
+          </div>
+          <div class="report-kpi-icon">✅</div>
+        </div>
+        <div class="report-kpi-card kpi-inprogress">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Công việc dang dở</span>
+            <span class="report-kpi-value" style="color:#d97706;">${reportData.inProgress.length}</span>
+            <span class="report-kpi-subtext">Đang thực hiện</span>
+          </div>
+          <div class="report-kpi-icon">⏳</div>
+        </div>
+        <div class="report-kpi-card kpi-rate">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Hiệu suất tuần</span>
+            <span class="report-kpi-value" style="color:${rateColor};">${reportData.rate}%</span>
+            <span class="report-kpi-subtext">${reportData.completed.length}/${reportData.total} nhiệm vụ</span>
+          </div>
+          <div class="report-kpi-icon">🎯</div>
+        </div>
+      </div>
+
+      <div class="report-sections-grid">
+        <div class="report-column report-col-completed">
+          <div class="report-col-header">
+            <div class="report-col-title-wrap">
+              <span style="font-size:18px;">✅</span>
+              <h3 class="report-col-title">Công việc Đã Hoàn Thành</h3>
+            </div>
+            <span class="report-col-badge badge-green">${reportData.completed.length} việc</span>
+          </div>
+          <div class="report-tasks-list">
+            ${reportData.completed.length === 0 ? `
+              <div class="report-empty-placeholder">
+                <div style="font-size:24px;margin-bottom:6px;">📭</div>
+                Chưa có công việc hoàn thành trong ${mode === 'week' ? 'tuần này' : 'danh sách'}
+              </div>
+            ` : reportData.completed.map(t => renderReportTaskItem(t, 'completed', false)).join('')}
+          </div>
+        </div>
+
+        <div class="report-column report-col-inprogress">
+          <div class="report-col-header">
+            <div class="report-col-title-wrap">
+              <span style="font-size:18px;">⏳</span>
+              <h3 class="report-col-title">Công việc Dang Dở / Đang Thực Hiện</h3>
+            </div>
+            <span class="report-col-badge badge-amber">${reportData.inProgress.length} việc</span>
+          </div>
+          <div class="report-tasks-list">
+            ${reportData.inProgress.length === 0 ? `
+              <div class="report-empty-placeholder">
+                <div style="font-size:24px;margin-bottom:6px;">🎉</div>
+                Tuyệt vời! Bạn không có công việc dang dở nào.
+              </div>
+            ` : reportData.inProgress.map(t => renderReportTaskItem(t, 'inprogress', false)).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindReportEventListeners(container);
+  }
+
+  function renderLeaderReportView(container, weekInfo, mode) {
+    const allEmps = state.employees;
+    const teamFilter = state.reportTeamFilter || 'ALL';
+    const searchQuery = (state.reportStaffSearch || '').trim().toLowerCase();
+
+    const staffReports = allEmps.map(emp => {
+      const data = getEmployeeProductivity(emp.id, weekInfo, mode);
+      return { emp, ...data };
+    });
+
+    const deptTotalCompleted = staffReports.reduce((s, r) => s + r.completed.length, 0);
+    const deptTotalInProgress = staffReports.reduce((s, r) => s + r.inProgress.length, 0);
+    const deptTotalTasks = deptTotalCompleted + deptTotalInProgress;
+    const deptRate = deptTotalTasks > 0 ? Math.round((deptTotalCompleted / deptTotalTasks) * 100) : 0;
+
+    let filteredStaff = staffReports;
+    if (teamFilter !== 'ALL') {
+      filteredStaff = filteredStaff.filter(r => r.emp.team === teamFilter);
+    }
+    if (searchQuery) {
+      filteredStaff = filteredStaff.filter(r => 
+        r.emp.name.toLowerCase().includes(searchQuery) ||
+        (r.emp.position || '').toLowerCase().includes(searchQuery) ||
+        r.completed.some(t => t.title.toLowerCase().includes(searchQuery)) ||
+        r.inProgress.some(t => t.title.toLowerCase().includes(searchQuery))
+      );
+    }
+
+    container.innerHTML = `
+      <div class="report-header-bar">
+        <div class="report-title-block">
+          <div class="report-title-icon">📊</div>
+          <div>
+            <h2 class="report-main-title">Báo cáo Năng suất Theo tuần Toàn phòng</h2>
+            <p class="report-subtitle">Phòng Kỹ thuật và An toàn — PC Vũng Tàu (Xem tất cả ${allEmps.length} nhân sự)</p>
+          </div>
+        </div>
+
+        <div class="report-nav-controls">
+          <div class="week-nav-group">
+            <button class="btn-week-nav" id="rptPrevWeek" title="Tuần trước">◀</button>
+            <div class="week-badge-display">
+              <span>📅</span>
+              <span>${weekInfo.label}</span>
+              <span class="week-badge-tag ${weekInfo.isCurrentWeek ? '' : 'tag-past'}">${weekInfo.relativeTag}</span>
+            </div>
+            <button class="btn-week-nav" id="rptNextWeek" title="Tuần sau">▶</button>
+            <button class="btn btn-outline btn-sm" id="rptCurrentWeek" style="padding:4px 8px;font-size:11.5px;">Hôm nay</button>
+          </div>
+
+          <div class="report-scope-toggle">
+            <button class="scope-btn ${mode === 'week' ? 'active' : ''}" data-scope="week">Tuần này</button>
+            <button class="scope-btn ${mode === 'all' ? 'active' : ''}" data-scope="all">Tất cả việc</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-kpi-grid">
+        <div class="report-kpi-card kpi-total">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Tổng việc phòng</span>
+            <span class="report-kpi-value">${deptTotalTasks}</span>
+            <span class="report-kpi-subtext">${allEmps.length} CBCNV theo dõi</span>
+          </div>
+          <div class="report-kpi-icon">📋</div>
+        </div>
+        <div class="report-kpi-card kpi-completed">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Đã hoàn thành</span>
+            <span class="report-kpi-value" style="color:#059669;">${deptTotalCompleted}</span>
+            <span class="report-kpi-subtext">${deptRate}% toàn phòng</span>
+          </div>
+          <div class="report-kpi-icon">✅</div>
+        </div>
+        <div class="report-kpi-card kpi-inprogress">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Công việc dang dở</span>
+            <span class="report-kpi-value" style="color:#d97706;">${deptTotalInProgress}</span>
+            <span class="report-kpi-subtext">Đang thực hiện</span>
+          </div>
+          <div class="report-kpi-icon">⏳</div>
+        </div>
+        <div class="report-kpi-card kpi-rate">
+          <div class="report-kpi-info">
+            <span class="report-kpi-label">Tỷ lệ hoàn thành</span>
+            <span class="report-kpi-value" style="color:#8b5cf6;">${deptRate}%</span>
+            <span class="report-kpi-subtext">${deptTotalCompleted}/${deptTotalTasks} công việc</span>
+          </div>
+          <div class="report-kpi-icon">📈</div>
+        </div>
+      </div>
+
+      <div class="report-toolbar">
+        <div class="report-team-filters">
+          <button class="report-team-btn ${teamFilter === 'ALL' ? 'active' : ''}" data-team="ALL">Tất cả các tổ (${allEmps.length})</button>
+          <button class="report-team-btn ${teamFilter === 'BLĐ' ? 'active' : ''}" data-team="BLĐ">🏛️ Ban Lãnh đạo (3)</button>
+          <button class="report-team-btn ${teamFilter === 'TKT' ? 'active' : ''}" data-team="TKT">⚡ Tổ Kỹ thuật (12)</button>
+          <button class="report-team-btn ${teamFilter === 'TCNTT' ? 'active' : ''}" data-team="TCNTT">💻 Tổ CNTT (4)</button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" id="rptSearchInput" class="report-search-input" placeholder="🔍 Tìm CBCNV, công việc..." value="${escapeHtml(state.reportStaffSearch || '')}">
+          <button class="btn btn-outline btn-sm" id="rptExpandAllBtn" style="padding:6px 12px;font-size:12px;">📂 Mở rộng tất cả</button>
+          <button class="btn btn-outline btn-sm" id="rptCollapseAllBtn" style="padding:6px 12px;font-size:12px;">📁 Thu gọn</button>
+          <button class="btn btn-outline btn-sm" id="rptPrintBtn" style="padding:6px 12px;font-size:12px;">🖨️ In báo cáo</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;" id="reportStaffList">
+        ${filteredStaff.length === 0 ? `
+          <div class="report-empty-placeholder">
+            <div style="font-size:24px;margin-bottom:6px;">🔍</div>
+            Không tìm thấy nhân viên hoặc công việc phù hợp với bộ lọc.
+          </div>
+        ` : filteredStaff.map(item => renderLeaderStaffCard(item, mode)).join('')}
+      </div>
+    `;
+
+    bindReportEventListeners(container);
+  }
+
+  function renderLeaderStaffCard(item, mode) {
+    const { emp, completed, inProgress, total, rate } = item;
+    const isExpanded = !!state.reportExpandedStaff[emp.id];
+    const initials = getInitials(emp.name);
+    const photoUrl = emp.photo;
+
+    let fillBg = '#10b981';
+    if (rate < 40) fillBg = '#ef4444';
+    else if (rate < 70) fillBg = '#f59e0b';
+
+    const teamLabels = { 'BLĐ': 'Ban Lãnh đạo', 'TKT': 'Tổ Kỹ thuật', 'TCNTT': 'Tổ CNTT' };
+
+    return `
+      <div class="report-staff-card" data-emp-id="${emp.id}">
+        <div class="report-staff-header" data-action="toggle-expand" data-emp-id="${emp.id}">
+          <div class="report-staff-profile">
+            ${photoUrl ? `<img class="report-staff-avatar" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="report-staff-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="report-staff-avatar-fallback">${initials}</div>`}
+            <div class="report-staff-meta">
+              <span class="report-staff-name">${emp.name}</span>
+              <span class="report-staff-role">
+                <span>${emp.position}</span>
+                <span class="report-badge-team">${teamLabels[emp.team] || emp.team}</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="report-staff-metrics">
+            <span class="report-metric-pill metric-pill-green" title="Công việc hoàn thành">
+              <span>✅</span><span>${completed.length} hoàn thành</span>
+            </span>
+            <span class="report-metric-pill metric-pill-amber" title="Công việc dang dở">
+              <span>⏳</span><span>${inProgress.length} dang dở</span>
+            </span>
+            <span class="report-metric-pill metric-pill-blue" title="Tổng công việc">
+              <span>📋</span><span>${total} việc</span>
+            </span>
+
+            <div class="report-meter-wrap" title="Tỷ lệ hoàn thành: ${rate}%">
+              <div class="report-meter-bar">
+                <div class="report-meter-fill" style="width:${rate}%;background:${fillBg};"></div>
+              </div>
+              <span class="report-meter-pct" style="color:${fillBg};">${rate}%</span>
+            </div>
+
+            <span class="report-toggle-arrow">${isExpanded ? 'Thu gọn ▴' : 'Chi tiết ▾'}</span>
+          </div>
+        </div>
+
+        ${isExpanded ? `
+          <div class="report-staff-body">
+            <div class="report-column report-col-completed">
+              <div class="report-col-header">
+                <div class="report-col-title-wrap">
+                  <span>✅</span>
+                  <h4 class="report-col-title">Công việc hoàn thành</h4>
+                </div>
+                <span class="report-col-badge badge-green">${completed.length} việc</span>
+              </div>
+              <div class="report-tasks-list">
+                ${completed.length === 0 ? '<div class="report-empty-placeholder">Chưa có công việc hoàn thành</div>' :
+                  completed.map(t => renderReportTaskItem(t, 'completed', true)).join('')}
+              </div>
+            </div>
+
+            <div class="report-column report-col-inprogress">
+              <div class="report-col-header">
+                <div class="report-col-title-wrap">
+                  <span>⏳</span>
+                  <h4 class="report-col-title">Công việc dang dở</h4>
+                </div>
+                <span class="report-col-badge badge-amber">${inProgress.length} việc</span>
+              </div>
+              <div class="report-tasks-list">
+                ${inProgress.length === 0 ? '<div class="report-empty-placeholder">🎉 Không có công việc dang dở</div>' :
+                  inProgress.map(t => renderReportTaskItem(t, 'inprogress', true)).join('')}
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function renderReportTaskItem(task, statusMode, isLeaderView) {
+    const cat = state.categories.find(c => c.id === task.category_id);
+    const subAssign = task.sub_assignments && task.sub_assignments[currentEmpId] ? task.sub_assignments[currentEmpId] : '';
+    const isCompleted = task.status === 'completed';
+
+    let completedDateText = '';
+    if (task.completed_at) {
+      const d = new Date(task.completed_at);
+      completedDateText = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    }
+
+    return `
+      <div class="report-task-item ${isCompleted ? 'completed-item' : 'inprogress-item'}" data-task-id="${task.id}">
+        <div class="report-task-title" ${isLeaderView ? `style="cursor:pointer;" title="Nhấn để xem/sửa chi tiết"` : ''}>
+          ${escapeHtml(task.title)}
+        </div>
+        ${task.detail && task.detail !== task.title ? `<div class="report-task-detail">${escapeHtml(task.detail)}</div>` : ''}
+        ${subAssign ? `<div class="task-sub-assigned-box"><strong>🎯 Nhiệm vụ cụ thể:</strong> ${escapeHtml(subAssign)}</div>` : ''}
+        <div class="report-task-meta">
+          ${cat ? `<span class="report-task-tag report-tag-cat" style="color:${cat.color};background:${cat.bg_color};border-color:${cat.border_color};">${cat.title}</span>` : ''}
+          ${task.deadline ? `<span class="report-task-tag report-tag-deadline">📅 Hạn: ${formatFullDate(task.deadline)}</span>` : ''}
+          ${completedDateText ? `<span class="report-task-tag report-tag-completed">✓ Xong: ${completedDateText}</span>` : ''}
+          ${task.created_by === currentEmpId ? `<span class="report-task-tag" style="background:#f1f5f9;color:#475569;">✏️ Tự nhập</span>` : ''}
+        </div>
+        <div class="report-task-actions">
+          ${!isLeaderView && !isCompleted ? `<button class="btn-report-action btn-report-complete" data-action="report-complete" data-task-id="${task.id}">✓ Hoàn thành</button>` : ''}
+          ${!isLeaderView && isCompleted ? `<button class="btn-report-action btn-report-reopen" data-action="report-reopen" data-task-id="${task.id}">↩ Mở lại</button>` : ''}
+          ${isLeaderView ? `<button class="btn-report-action btn-report-reopen" data-action="report-edit" data-task-id="${task.id}">✏️ Chi tiết / Sửa</button>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function bindReportEventListeners(container) {
+    const prevBtn = container.querySelector('#rptPrevWeek');
+    if (prevBtn) prevBtn.addEventListener('click', () => {
+      state.reportWeekOffset = (state.reportWeekOffset || 0) - 1;
+      render();
+    });
+
+    const nextBtn = container.querySelector('#rptNextWeek');
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      state.reportWeekOffset = (state.reportWeekOffset || 0) + 1;
+      render();
+    });
+
+    const currBtn = container.querySelector('#rptCurrentWeek');
+    if (currBtn) currBtn.addEventListener('click', () => {
+      state.reportWeekOffset = 0;
+      render();
+    });
+
+    container.querySelectorAll('.scope-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.reportMode = btn.dataset.scope;
+        render();
+      });
+    });
+
+    container.querySelectorAll('[data-action="report-complete"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.taskId;
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) {
+          task.status = 'completed';
+          task.completed_at = new Date().toISOString();
+          saveData(false);
+          render();
+          updateQuickStats();
+          notify('success', '✓ Đã đánh dấu hoàn thành công việc!');
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-action="report-reopen"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.taskId;
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) {
+          task.status = 'in_progress';
+          delete task.completed_at;
+          saveData(false);
+          render();
+          updateQuickStats();
+          notify('info', '↩ Đã mở lại công việc');
+        }
+      });
+    });
+
+    if (isLeader) {
+      container.querySelectorAll('[data-action="toggle-expand"]').forEach(hdr => {
+        hdr.addEventListener('click', () => {
+          const empId = hdr.dataset.empId;
+          state.reportExpandedStaff[empId] = !state.reportExpandedStaff[empId];
+          render();
+        });
+      });
+
+      container.querySelectorAll('.report-team-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.reportTeamFilter = btn.dataset.team;
+          render();
+        });
+      });
+
+      const searchInput = container.querySelector('#rptSearchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', e => {
+          state.reportStaffSearch = e.target.value;
+          render();
+          const newInp = document.getElementById('rptSearchInput');
+          if (newInp) {
+            newInp.focus();
+            newInp.setSelectionRange(newInp.value.length, newInp.value.length);
+          }
+        });
+      }
+
+      const expAll = container.querySelector('#rptExpandAllBtn');
+      if (expAll) expAll.addEventListener('click', () => {
+        state.employees.forEach(e => { state.reportExpandedStaff[e.id] = true; });
+        render();
+      });
+
+      const colAll = container.querySelector('#rptCollapseAllBtn');
+      if (colAll) colAll.addEventListener('click', () => {
+        state.reportExpandedStaff = {};
+        render();
+      });
+
+      const printBtn = container.querySelector('#rptPrintBtn');
+      if (printBtn) printBtn.addEventListener('click', () => window.print());
+
+      container.querySelectorAll('[data-action="report-edit"]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          openTaskModal(btn.dataset.taskId);
+        });
+      });
+
+      container.querySelectorAll('.report-task-title').forEach(titleEl => {
+        titleEl.addEventListener('click', e => {
+          const item = titleEl.closest('.report-task-item');
+          if (item && item.dataset.taskId) openTaskModal(item.dataset.taskId);
+        });
+      });
+    }
   }
 
 
@@ -1088,11 +1723,12 @@
     if (state.editingTaskId) {
       const task = state.tasks.find(t => t.id === state.editingTaskId);
       if (task) {
+        const completed_at = status === 'completed' ? (task.completed_at || new Date().toISOString()) : undefined;
         Object.assign(task, {
           title, detail, category_id: catId, category: cat ? cat.title : '',
           assignee_ids: assigneeId ? [assigneeId] : [], assignee_text: assigneeEmp ? assigneeEmp.name : 'Chưa phân công',
           follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
-          deadline, status, priority, in_staging: !assigneeId
+          deadline, status, priority, in_staging: !assigneeId, completed_at
         });
         saveData(false); notify('success', 'Đã cập nhật!');
       }
@@ -1102,7 +1738,8 @@
         section: cat ? cat.section : '', category: cat ? cat.title : '', subcategory: '', category_id: catId,
         assignee_ids: assigneeId ? [assigneeId] : [], assignee_text: assigneeEmp ? assigneeEmp.name : 'Chưa phân công',
         follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
-        deadline, status, priority, in_staging: !assigneeId, sub_assignments: {}, created_by: 'leader'
+        deadline, status, priority, in_staging: !assigneeId, sub_assignments: {}, created_by: 'leader',
+        completed_at: status === 'completed' ? new Date().toISOString() : undefined
       });
       saveData(false);
       notify('success', assigneeId ? `Đã tạo và phân công cho ${assigneeEmp.name}!` : 'Đã thêm vào Danh sách chờ!');

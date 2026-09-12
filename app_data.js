@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PHÒNG KỸ THUẬT VÀ AN TOÀN - PC VŨNG TÀU
  * HỆ THỐNG QUẢN LÝ & PHÂN CÔNG CÔNG VIỆC
  * Dữ liệu nhân sự, tài khoản, categories, tasks mẫu
@@ -7,26 +7,26 @@
 window.KTAT_AUTH_DATA = {
   accounts: [
     // === BAN LÃNH ĐẠO PHÒNG (role: leader) ===
-    { username: "nguyễn đức minh", password: "ndminh123", empId: "emp_012054", role: "leader" },
-    { username: "phan thế vinh", password: "ptvinh123", empId: "emp_012170", role: "leader" },
-    { username: "nguyễn huy", password: "nhuy123", empId: "emp_010333", role: "leader" },
+    { username: "nguyễn đức minh", password: "123", empId: "emp_012054", role: "leader" },
+    { username: "phan thế vinh", password: "123", empId: "emp_012170", role: "leader" },
+    { username: "nguyễn huy", password: "123", empId: "emp_010333", role: "leader" },
     // === TỔ KỸ THUẬT VÀ AN TOÀN (role: staff) ===
-    { username: "nguyễn đình hanh", password: "ndhanh123", empId: "emp_012554", role: "staff" },
-    { username: "đặng thiện hiếu", password: "dthieu123", empId: "emp_012528", role: "staff" },
-    { username: "vũ đại dương", password: "vdduong123", empId: "emp_012688", role: "staff" },
-    { username: "nguyễn anh hoàng", password: "nahoang123", empId: "emp_012500", role: "staff" },
-    { username: "nguyễn ngọc hùng", password: "nnhung123", empId: "emp_012697", role: "staff" },
-    { username: "nguyễn văn huy", password: "nvhuy123", empId: "emp_012665", role: "staff" },
-    { username: "lê ngọc tuấn nhật", password: "lntnhat123", empId: "emp_012350", role: "staff" },
-    { username: "võ hùng phi", password: "vhphi123", empId: "emp_012139", role: "staff" },
-    { username: "hồ hữu minh tâm", password: "hhmtam123", empId: "emp_012209", role: "staff" },
-    { username: "đỗ xuân vinh", password: "dxvinh123", empId: "emp_012323", role: "staff" },
-    { username: "trần tấn phát", password: "ttphat123", empId: "emp_010622", role: "staff" },
-    { username: "hồ đức phương", password: "hdphuong123", empId: "emp_010113", role: "staff" },
-    { username: "võ minh tâm", password: "vmtam123", empId: "emp_006110", role: "staff" },
+    { username: "nguyễn đình hanh", password: "123", empId: "emp_012554", role: "staff" },
+    { username: "đặng thiện hiếu", password: "123", empId: "emp_012528", role: "staff" },
+    { username: "vũ đại dương", password: "123", empId: "emp_012688", role: "staff" },
+    { username: "nguyễn anh hoàng", password: "123", empId: "emp_012500", role: "staff" },
+    { username: "nguyễn ngọc hùng", password: "123", empId: "emp_012697", role: "staff" },
+    { username: "nguyễn văn huy", password: "123", empId: "emp_012665", role: "staff" },
+    { username: "lê ngọc tuấn nhật", password: "123", empId: "emp_012350", role: "staff" },
+    { username: "võ hùng phi", password: "123", empId: "emp_012139", role: "staff" },
+    { username: "hồ hữu minh tâm", password: "123", empId: "emp_012209", role: "staff" },
+    { username: "đỗ xuân vinh", password: "123", empId: "emp_012323", role: "staff" },
+    { username: "trần tấn phát", password: "123", empId: "emp_010622", role: "staff" },
+    { username: "hồ đức phương", password: "123", empId: "emp_010113", role: "staff" },
+    { username: "võ minh tâm", password: "123", empId: "emp_006110", role: "staff" },
     // === TỔ CÔNG NGHỆ THÔNG TIN (role: staff) ===
-    { username: "vũ thị linh chi", password: "vtlchi123", empId: "emp_012763", role: "staff" },
-    { username: "nguyễn hồng ngân", password: "nhngan123", empId: "emp_012317", role: "staff" }
+    { username: "vũ thị linh chi", password: "123", empId: "emp_012763", role: "staff" },
+    { username: "nguyễn hồng ngân", password: "123", empId: "emp_012317", role: "staff" }
   ]
 };
 

@@ -35,9 +35,11 @@
         </div>
 
         <div class="login-form-group">
-          <label class="login-label" for="loginUsername">Tên đăng nhập</label>
+          <label class="login-label" for="loginUsername">Chọn nhân viên</label>
           <div class="login-input-wrap">
-            <input type="text" id="loginUsername" class="login-input" placeholder="Nhập tên đầy đủ (VD: trần tấn phát)" required>
+            <select id="loginUsername" class="login-input login-select" required>
+              <option value="" disabled selected>-- Chọn tên của bạn --</option>
+            </select>
             <span class="login-input-icon">👤</span>
           </div>
         </div>
@@ -89,9 +91,35 @@
         } catch(e) {}
       }
 
+      // Populate employee dropdown grouped by team
+      const selectEl = document.getElementById('loginUsername');
+      const accounts = window.KTAT_AUTH_DATA ? window.KTAT_AUTH_DATA.accounts : [];
+      const employees = window.INITIAL_APP_DATA ? window.INITIAL_APP_DATA.employees : [];
+
+      const teams = [
+        { id: 'BLĐ', label: '🏢 Ban Lãnh đạo Phòng' },
+        { id: 'TKT', label: '⚡ Tổ Kỹ thuật' },
+        { id: 'TCNTT', label: '💻 Tổ Công nghệ thông tin' }
+      ];
+
+      teams.forEach(team => {
+        const teamEmps = employees.filter(e => e.team === team.id);
+        if (teamEmps.length === 0) return;
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = team.label;
+        teamEmps.forEach(emp => {
+          const account = accounts.find(a => a.empId === emp.id);
+          if (!account) return;
+          const opt = document.createElement('option');
+          opt.value = account.username;
+          opt.textContent = `${emp.name} — ${emp.position}`;
+          optgroup.appendChild(opt);
+        });
+        selectEl.appendChild(optgroup);
+      });
+
       const form = document.getElementById('loginForm');
       const errorBox = document.getElementById('loginError');
-      const usernameInput = document.getElementById('loginUsername');
       const passwordInput = document.getElementById('loginPassword');
       const rememberCheck = document.getElementById('loginRemember');
 
@@ -99,16 +127,22 @@
         e.preventDefault();
         errorBox.style.display = 'none';
 
-        const username = usernameInput.value.trim().toLowerCase();
+        const username = selectEl.value;
         const password = passwordInput.value.trim();
 
-        if (!username || !password) {
-          errorBox.textContent = '⚠️ Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!';
+        if (!username) {
+          errorBox.textContent = '⚠️ Vui lòng chọn tên của bạn!';
           errorBox.style.display = 'block';
           return;
         }
 
-        const accounts = window.KTAT_AUTH_DATA ? window.KTAT_AUTH_DATA.accounts : [];
+        if (!password) {
+          errorBox.textContent = '⚠️ Vui lòng nhập mật khẩu!';
+          errorBox.style.display = 'block';
+          passwordInput.focus();
+          return;
+        }
+
         // Check custom passwords first (from password changes)
         let customPasswords = {};
         try { customPasswords = JSON.parse(localStorage.getItem('KTAT_CUSTOM_PASSWORDS') || '{}'); } catch(e) {}
@@ -116,18 +150,17 @@
         // Find account by username
         const accountByName = accounts.find(a => a.username === username);
         if (!accountByName) {
-          errorBox.textContent = '⚠️ Tên đăng nhập hoặc mật khẩu không đúng!';
+          errorBox.textContent = '⚠️ Tài khoản không tồn tại!';
           errorBox.style.display = 'block';
-          usernameInput.focus();
           return;
         }
 
         // Check password: custom first, then default
         const validPassword = customPasswords[accountByName.empId] || accountByName.password;
         if (password !== validPassword) {
-          errorBox.textContent = '⚠️ Tên đăng nhập hoặc mật khẩu không đúng!';
+          errorBox.textContent = '⚠️ Mật khẩu không đúng!';
           errorBox.style.display = 'block';
-          usernameInput.focus();
+          passwordInput.focus();
           return;
         }
 

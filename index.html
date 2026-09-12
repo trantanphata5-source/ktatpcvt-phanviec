@@ -130,9 +130,8 @@
         teamEmps.forEach(emp => {
           const account = accounts.find(a => a.empId === emp.id);
           if (!account) return;
-          const opt = document.createElement('option');
-          opt.value = account.username;
-          opt.textContent = `${emp.name} — ${emp.position}`;
+          const tag = emp.is_reinforced ? ' (Tăng cường Đội VHLĐ)' : '';
+          opt.textContent = `${emp.name} — ${emp.position}${tag}`;
           optgroup.appendChild(opt);
         });
         selectEl.appendChild(optgroup);

@@ -45,7 +45,11 @@ const DEFAULT_ACCOUNTS = [
   { stt: 15, empId: "emp_010113", name: "Hồ Đức Phương", username: "hồ đức phương", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Kỹ thuật điện" },
   { stt: 16, empId: "emp_006110", name: "Võ Minh Tâm", username: "võ minh tâm", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Chuyên viên Kỹ thuật" },
   { stt: 17, empId: "emp_012763", name: "Vũ Thị Linh Chi", username: "vũ thị linh chi", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Chuyên viên CNTT" },
-  { stt: 18, empId: "emp_012317", name: "Nguyễn Hồng Ngân", username: "nguyễn hồng ngân", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Chuyên viên CNTT" }
+  { stt: 18, empId: "emp_012317", name: "Nguyễn Hồng Ngân", username: "nguyễn hồng ngân", password: "123", role: "Nhân viên", team: "Tổ CNTT", position: "Chuyên viên CNTT" },
+  // 3 nhân sự tăng cường từ Đội Vận hành lưới điện vào Tổ Kỹ thuật
+  { stt: 19, empId: "emp_012106", name: "Phạm Chí Trung", username: "phạm chí trung", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Phương thức (Tăng cường Đội VHLĐ)" },
+  { stt: 20, empId: "emp_012521", name: "Lê Thanh Tùng", username: "lê thanh tùng", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Kỹ sư Phương thức (Tăng cường Đội VHLĐ)" },
+  { stt: 21, empId: "emp_012384", name: "Trần Quốc Khương", username: "trần quốc khương", password: "123", role: "Nhân viên", team: "Tổ Kỹ thuật", position: "Nhân viên Phương thức (Tăng cường Đội VHLĐ)" }
 ];
 
 function getSpreadsheet() {
@@ -233,8 +237,49 @@ function getOrCreateAccountsSheet(ss) {
   if (!sheet) {
     sheet = ss.insertSheet(ACCOUNTS_SHEET_NAME);
     initAccountsSheet(sheet);
+  } else {
+    ensureAllAccountsInSheet(sheet);
   }
   return sheet;
+}
+
+function ensureAllAccountsInSheet(sheet) {
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      initAccountsSheet(sheet);
+      return;
+    }
+    var existingEmpIds = sheet.getRange(2, 2, lastRow - 1, 1).getValues().map(function(r) { return String(r[0]).trim(); });
+    var missingAccounts = DEFAULT_ACCOUNTS.filter(function(acc) {
+      return existingEmpIds.indexOf(acc.empId) === -1;
+    });
+
+    if (missingAccounts.length > 0) {
+      var nextStt = lastRow;
+      var newRows = missingAccounts.map(function(acc, idx) {
+        return [
+          nextStt + idx,
+          acc.empId,
+          acc.name,
+          acc.username,
+          acc.password,
+          acc.role,
+          acc.team,
+          acc.position,
+          'Mặc định ban đầu'
+        ];
+      });
+      var startRow = lastRow + 1;
+      sheet.getRange(startRow, 1, newRows.length, 9).setValues(newRows);
+      sheet.getRange(startRow, 1, newRows.length, 2).setHorizontalAlignment('center');
+      sheet.getRange(startRow, 5, newRows.length, 2).setHorizontalAlignment('center');
+      sheet.getRange(startRow, 9, newRows.length, 1).setHorizontalAlignment('center');
+      sheet.getRange(startRow, 5, newRows.length, 1).setBackground('#fef9c3').setFontWeight('bold');
+    }
+  } catch(e) {
+    console.warn('ensureAllAccounts error:', e);
+  }
 }
 
 function initAccountsSheet(sheet) {

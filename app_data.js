@@ -24,6 +24,10 @@ window.KTAT_AUTH_DATA = {
     { username: "trần tấn phát", password: "123", empId: "emp_010622", role: "staff" },
     { username: "hồ đức phương", password: "123", empId: "emp_010113", role: "staff" },
     { username: "võ minh tâm", password: "123", empId: "emp_006110", role: "staff" },
+    // === NHÂN SỰ TĂNG CƯỜNG TỪ ĐỘI VẬN HÀNH LƯỚI ĐIỆN VÀO TỔ KỸ THUẬT (role: staff) ===
+    { username: "phạm chí trung", password: "123", empId: "emp_012106", role: "staff" },
+    { username: "lê thanh tùng", password: "123", empId: "emp_012521", role: "staff" },
+    { username: "trần quốc khương", password: "123", empId: "emp_012384", role: "staff" },
     // === TỔ CÔNG NGHỆ THÔNG TIN (role: staff) ===
     { username: "vũ thị linh chi", password: "123", empId: "emp_012763", role: "staff" },
     { username: "nguyễn hồng ngân", password: "123", empId: "emp_012317", role: "staff" }
@@ -364,6 +368,57 @@ window.INITIAL_APP_DATA = {
       "short_name": "Tâm VM",
       "team": "TKT",
       "team_name": "Tổ Kỹ thuật"
+    },
+    {
+      "name": "Phạm Chí Trung",
+      "msnv": "012106",
+      "position": "Kỹ sư Phương thức",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0969010858",
+      "email": "Trung2PC@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1bXTNuUA1aZRz4VZMQGXKRkKcE4dpUASu&sz=w500",
+      "id": "emp_012106",
+      "short_name": "Trung P.C",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật",
+      "is_reinforced": true,
+      "reinforce_note": "Tăng cường Đội VHLĐ"
+    },
+    {
+      "name": "Lê Thanh Tùng",
+      "msnv": "012521",
+      "position": "Kỹ sư Phương thức",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0915861046",
+      "email": "Tung9LT@hcmpc.com.vn",
+      "photo": "https://drive.google.com/thumbnail?id=1j25jbJQ7gVmKjqeAs6XjfDgMojKBs0m_&sz=w500",
+      "id": "emp_012521",
+      "short_name": "Tùng L.T",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật",
+      "is_reinforced": true,
+      "reinforce_note": "Tăng cường Đội VHLĐ"
+    },
+    {
+      "name": "Trần Quốc Khương",
+      "msnv": "012384",
+      "position": "Nhân viên Phương thức",
+      "dept_short": "KTAT",
+      "dept_full": "Phòng Kỹ thuật và An toàn",
+      "group": "Tổ Kỹ thuật và An toàn - Phòng Kỹ thuật và An toàn",
+      "phone": "0909486966",
+      "email": "KhuongTQ@hcmpc.com.vn",
+      "photo": "",
+      "id": "emp_012384",
+      "short_name": "Khương T.Q",
+      "team": "TKT",
+      "team_name": "Tổ Kỹ thuật",
+      "is_reinforced": true,
+      "reinforce_note": "Tăng cường Đội VHLĐ"
     },
     {
       "name": "Vũ Thị Linh Chi",

@@ -216,6 +216,22 @@
         const parsed = JSON.parse(saved);
         state.categories = parsed.categories || window.INITIAL_APP_DATA.categories;
         state.employees = parsed.employees || window.INITIAL_APP_DATA.employees;
+        // Đảm bảo nhân sự mới trong INITIAL_APP_DATA (như 3 nhân sự tăng cường) luôn được bổ sung
+        if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.employees) {
+          const empMap = {};
+          state.employees.forEach(e => { empMap[e.id] = e; });
+          window.INITIAL_APP_DATA.employees.forEach(e => {
+            if (!empMap[e.id]) {
+              state.employees.push(e);
+            } else {
+              if (e.is_reinforced) {
+                empMap[e.id].is_reinforced = e.is_reinforced;
+                empMap[e.id].reinforce_note = e.reinforce_note;
+              }
+              if (!empMap[e.id].photo && e.photo) empMap[e.id].photo = e.photo;
+            }
+          });
+        }
         state.tasks = parsed.tasks || window.INITIAL_APP_DATA.tasks;
         state.lastSavedAt = parsed.savedAt || 0;
         state.hasUnsavedLocalChanges = false;
@@ -317,7 +333,16 @@
     if (shouldApply) {
       state.tasks = rd.tasks;
       if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) state.categories = rd.categories;
-      if (rd.employees && Array.isArray(rd.employees) && rd.employees.length > 0) state.employees = rd.employees;
+      if (rd.employees && Array.isArray(rd.employees) && rd.employees.length > 0) {
+        state.employees = rd.employees;
+        if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.employees) {
+          const empMap = {};
+          state.employees.forEach(e => { empMap[e.id] = e; });
+          window.INITIAL_APP_DATA.employees.forEach(e => {
+            if (!empMap[e.id]) state.employees.push(e);
+          });
+        }
+      }
       state.lastSavedAt = rd.lastModified || rd.savedAt || new Date().toISOString();
       state.hasUnsavedLocalChanges = false;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: state.lastSavedAt }));
@@ -663,7 +688,10 @@
           ${photoUrl ? `<img class="employee-avatar-img" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="employee-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="employee-avatar-fallback">${initials}</div>`}
         </div>
         <div class="employee-info">
-          <div class="employee-name" title="${emp.name}">${emp.name}</div>
+          <div class="employee-name" title="${emp.name}">
+            ${emp.name}
+            ${emp.is_reinforced ? `<span class="badge-reinforced" title="${emp.reinforce_note || 'Nhân sự tăng cường từ Đội VHLĐ'}">⚡ Tăng cường</span>` : ''}
+          </div>
           <div class="employee-role" title="${emp.position}">${emp.position}</div>
         </div>
         <div class="employee-task-count">${empTasks.length} việc</div>
@@ -787,7 +815,7 @@
         ${photoUrl ? `<img class="personal-welcome-avatar" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="personal-welcome-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="personal-welcome-avatar-fallback">${initials}</div>`}
         <div class="personal-welcome-info">
           <h2>Xin chào, ${emp.short_name || emp.name}!</h2>
-          <p>${emp.position} — ${emp.dept_full}</p>
+          <p>${emp.position} — ${emp.dept_full}${emp.is_reinforced ? ' <span class="badge-reinforced">⚡ Nhân sự tăng cường từ Đội VHLĐ</span>' : ''}</p>
           <div class="personal-stats-row">
             <div class="personal-stat-item"><strong>${myAssignedTasks.length}</strong> Đang làm</div>
             <div class="personal-stat-item"><strong>${myCompletedTasks.length}</strong> Đã xong</div>
@@ -1238,9 +1266,9 @@
       <div class="report-toolbar">
         <div class="report-team-filters">
           <button class="report-team-btn ${teamFilter === 'ALL' ? 'active' : ''}" data-team="ALL">Tất cả các tổ (${allEmps.length})</button>
-          <button class="report-team-btn ${teamFilter === 'BLĐ' ? 'active' : ''}" data-team="BLĐ">🏛️ Ban Lãnh đạo (3)</button>
-          <button class="report-team-btn ${teamFilter === 'TKT' ? 'active' : ''}" data-team="TKT">⚡ Tổ Kỹ thuật (12)</button>
-          <button class="report-team-btn ${teamFilter === 'TCNTT' ? 'active' : ''}" data-team="TCNTT">💻 Tổ CNTT (4)</button>
+          <button class="report-team-btn ${teamFilter === 'BLĐ' ? 'active' : ''}" data-team="BLĐ">🏛️ Ban Lãnh đạo (${allEmps.filter(e => e.team === 'BLĐ').length})</button>
+          <button class="report-team-btn ${teamFilter === 'TKT' ? 'active' : ''}" data-team="TKT">⚡ Tổ Kỹ thuật (${allEmps.filter(e => e.team === 'TKT').length})</button>
+          <button class="report-team-btn ${teamFilter === 'TCNTT' ? 'active' : ''}" data-team="TCNTT">💻 Tổ CNTT (${allEmps.filter(e => e.team === 'TCNTT').length})</button>
         </div>
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -1282,7 +1310,7 @@
           <div class="report-staff-profile">
             ${photoUrl ? `<img class="report-staff-avatar" src="${photoUrl}" alt="${emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="report-staff-avatar-fallback" style="display:none;">${initials}</div>` : `<div class="report-staff-avatar-fallback">${initials}</div>`}
             <div class="report-staff-meta">
-              <span class="report-staff-name">${emp.name}</span>
+              <span class="report-staff-name">${emp.name}${emp.is_reinforced ? ` <span class="badge-reinforced" title="Nhân sự tăng cường từ Đội VHLĐ">⚡ Tăng cường</span>` : ''}</span>
               <span class="report-staff-role">
                 <span>${emp.position}</span>
                 <span class="report-badge-team">${teamLabels[emp.team] || emp.team}</span>

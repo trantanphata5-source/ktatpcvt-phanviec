@@ -316,6 +316,7 @@
         state.tasks = parsed.tasks || window.INITIAL_APP_DATA.tasks;
         state.lastSavedAt = parsed.savedAt || 0;
         state.hasUnsavedLocalChanges = false;
+        resolveCategoryIds();
         return;
       } catch(e) { console.error('Parse error:', e); }
     }
@@ -326,6 +327,75 @@
       state.tasks.forEach(t => { if (t.deadline) t.deadline = formatFullDate(t.deadline); });
       state.lastSavedAt = 0;
       state.hasUnsavedLocalChanges = false;
+      resolveCategoryIds();
+    }
+  }
+
+  /**
+   * Đồng bộ category_id cho tasks khi categories đã đổi (ví dụ: từ La Mã sang RACI 25 nhóm).
+   * Nếu task.category_id không tìm thấy trong state.categories → tìm lại bằng tên.
+   */
+  function resolveCategoryIds() {
+    if (!state.tasks || !state.categories || state.categories.length === 0) return;
+    const catById = {};
+    const catByTitle = {};
+    const catByCode = {};
+    state.categories.forEach(c => {
+      catById[c.id] = c;
+      catByTitle[c.title.toLowerCase().trim()] = c;
+      if (c.code) catByCode[c.code.toLowerCase().trim()] = c;
+    });
+
+    let changed = false;
+    state.tasks.forEach(task => {
+      // Đã khớp → skip
+      if (task.category_id && catById[task.category_id]) return;
+
+      let matched = null;
+
+      // 1) Match bằng category title (text trong cột "Nhóm công tác" của GSheet)
+      const taskCatText = (task.category || '').toLowerCase().trim();
+      if (taskCatText && catByTitle[taskCatText]) {
+        matched = catByTitle[taskCatText];
+      }
+
+      // 2) Match bằng code prefix (ví dụ: "2.1", "5.4")
+      if (!matched && taskCatText) {
+        const codeMatch = taskCatText.match(/^(\d+\.\d+)/);
+        if (codeMatch && catByCode[codeMatch[1]]) {
+          matched = catByCode[codeMatch[1]];
+        }
+      }
+
+      // 3) Fuzzy match: tìm category chứa từ khóa chính
+      if (!matched && taskCatText) {
+        for (const cat of state.categories) {
+          const catLower = cat.title.toLowerCase();
+          // Tách phần sau số: "2.1. ĐTXD: danh mục..." → "đtxd: danh mục..."
+          const catClean = catLower.replace(/^\d+\.\d+\.\s*/, '');
+          const taskClean = taskCatText.replace(/^\d+\.\d+\.\s*/, '');
+          if (catClean && taskClean && (catClean.includes(taskClean) || taskClean.includes(catClean))) {
+            matched = cat;
+            break;
+          }
+        }
+      }
+
+      if (matched) {
+        task.category_id = matched.id;
+        task.category = matched.title;
+        // Cập nhật follower từ category nếu task chưa có
+        if (matched.follower_ids && matched.follower_ids.length > 0 && (!task.follower_ids || task.follower_ids.length === 0)) {
+          task.follower_ids = matched.follower_ids;
+          task.follower_text = matched.follower_text || '';
+        }
+        changed = true;
+        console.log(`[resolveCategoryIds] Mapped task "${task.title}" → ${matched.title} (${matched.id})`);
+      }
+    });
+
+    if (changed) {
+      console.log('[resolveCategoryIds] Some tasks were re-mapped to new categories');
     }
   }
 
@@ -456,6 +526,7 @@
       }
       state.lastSavedAt = rd.lastModified || rd.savedAt || new Date().toISOString();
       state.hasUnsavedLocalChanges = false;
+      resolveCategoryIds(); // Đồng bộ category_id cho tasks từ cloud
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: state.lastSavedAt }));
       render(); updateQuickStats(); updateSyncUI('synced');
 

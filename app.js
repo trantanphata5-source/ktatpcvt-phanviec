@@ -55,7 +55,10 @@
     reportStaffSearch: '',
     reportExpandedStaff: {},
     // Preserved form state for personal view self-input
-    _savedFormState: null
+    _savedFormState: null,
+    // Category view state
+    categoryGroupFilter: 'ALL',
+    expandedCategories: {}
   };
 
   // Check if user is actively editing a form field (typing in input/textarea/select)
@@ -272,6 +275,26 @@
       try {
         const parsed = JSON.parse(saved);
         state.categories = parsed.categories || window.INITIAL_APP_DATA.categories;
+        // Đảm bảo categories mới trong INITIAL_APP_DATA luôn được cập nhật
+        if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.categories) {
+          const initCats = window.INITIAL_APP_DATA.categories;
+          // Nếu số lượng categories trong code mới khác cache cũ → dùng bản mới
+          if (initCats.length !== state.categories.length || 
+              initCats.some(ic => !state.categories.find(sc => sc.id === ic.id))) {
+            state.categories = JSON.parse(JSON.stringify(initCats));
+          } else {
+            // Merge follower_ids, section_code từ INITIAL_APP_DATA vào cached data
+            const catMap = {};
+            state.categories.forEach(c => { catMap[c.id] = c; });
+            initCats.forEach(ic => {
+              if (catMap[ic.id]) {
+                if (ic.follower_ids) catMap[ic.id].follower_ids = ic.follower_ids;
+                if (ic.follower_text) catMap[ic.id].follower_text = ic.follower_text;
+                if (ic.section_code) catMap[ic.id].section_code = ic.section_code;
+              }
+            });
+          }
+        }
         state.employees = parsed.employees || window.INITIAL_APP_DATA.employees;
         // Đảm bảo nhân sự mới trong INITIAL_APP_DATA (như 3 nhân sự tăng cường) luôn được bổ sung
         if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.employees) {
@@ -783,26 +806,143 @@
   // =========================================================================
   // CATEGORY VIEW (LEADER)
   // =========================================================================
+  const CATEGORY_SECTIONS = [
+    { code: 'A', label: 'A. Vận hành & KT Lưới điện', icon: '⚡', shortLabel: 'A. Vận hành' },
+    { code: 'B', label: 'B. ĐTXD – Sửa chữa – Đấu thầu', icon: '🏗️', shortLabel: 'B. ĐTXD' },
+    { code: 'C', label: 'C. Tài sản – Bàn giao – Vật tư', icon: '📦', shortLabel: 'C. Tài sản' },
+    { code: 'D', label: 'D. An toàn – Môi trường', icon: '🛡️', shortLabel: 'D. An toàn' },
+    { code: 'E', label: 'E. CNTT – Dữ liệu – CĐS', icon: '💻', shortLabel: 'E. CNTT' }
+  ];
+
+  const MAX_TASKS_COLLAPSED = 3;
+
   function renderCategoryView() {
     el.mainContent.innerHTML = '';
-    const grid = document.createElement('div');
-    grid.className = 'category-view-grid';
-    state.categories.forEach(cat => {
-      let catTasks = state.tasks.filter(t => t.category_id === cat.id && !t.in_staging);
-      if (state.searchQuery) catTasks = catTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
-      const card = document.createElement('div');
-      card.className = 'category-card';
-      card.innerHTML = `<div class="category-header" style="background:${cat.bg_color};border-color:${cat.border_color};"><div class="category-header-title" style="color:${cat.color};"><span>🏷️</span><span>${cat.title}</span></div><span class="category-badge-count" style="color:${cat.color};">${catTasks.length} việc</span></div><div class="category-tasks-dropzone" id="cdz_${cat.id}"></div>`;
-      const dz = card.querySelector(`#cdz_${cat.id}`);
-      if (isLeader) setupDropzone(dz, taskId => assignTaskToCategory(taskId, cat.id));
-      if (catTasks.length === 0) {
-        dz.innerHTML = `<div class="empty-task-placeholder">Chưa có công việc</div>`;
-      } else {
-        catTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: true })));
-      }
-      grid.appendChild(card);
+    const container = document.createElement('div');
+    container.className = 'category-view-container';
+
+    // ── Filter Bar ──
+    const filterBar = document.createElement('div');
+    filterBar.className = 'cat-filter-bar';
+    const activeFilter = state.categoryGroupFilter || 'ALL';
+    filterBar.innerHTML = `
+      <button class="cat-filter-pill ${activeFilter === 'ALL' ? 'active' : ''}" data-filter="ALL">
+        📋 Tất cả <span class="cat-filter-count">${state.categories.length}</span>
+      </button>
+      ${CATEGORY_SECTIONS.map(s => {
+        const count = state.categories.filter(c => (c.section_code || '') === s.code).length;
+        return `<button class="cat-filter-pill cat-filter-${s.code.toLowerCase()} ${activeFilter === s.code ? 'active' : ''}" data-filter="${s.code}">
+          ${s.icon} ${s.shortLabel} <span class="cat-filter-count">${count}</span>
+        </button>`;
+      }).join('')}
+    `;
+    container.appendChild(filterBar);
+
+    // ── Group categories by section ──
+    const filteredSections = activeFilter === 'ALL' 
+      ? CATEGORY_SECTIONS 
+      : CATEGORY_SECTIONS.filter(s => s.code === activeFilter);
+
+    filteredSections.forEach(sec => {
+      const sectionCats = state.categories.filter(c => (c.section_code || '') === sec.code);
+      if (sectionCats.length === 0) return;
+
+      // Count total tasks in this section
+      let sectionTaskCount = 0;
+      sectionCats.forEach(cat => {
+        sectionTaskCount += state.tasks.filter(t => t.category_id === cat.id && !t.in_staging).length;
+      });
+
+      const sectionBlock = document.createElement('div');
+      sectionBlock.className = 'cat-section-block';
+      sectionBlock.innerHTML = `
+        <div class="cat-section-header cat-section-${sec.code.toLowerCase()}">
+          <div class="cat-section-title-wrap">
+            <span class="cat-section-icon">${sec.icon}</span>
+            <h3 class="cat-section-title">${sec.label}</h3>
+          </div>
+          <span class="cat-section-stats">${sectionCats.length} nhóm • ${sectionTaskCount} việc</span>
+        </div>
+      `;
+
+      const grid = document.createElement('div');
+      grid.className = 'category-view-grid';
+
+      sectionCats.forEach(cat => {
+        let catTasks = state.tasks.filter(t => t.category_id === cat.id && !t.in_staging);
+        if (state.searchQuery) catTasks = catTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
+
+        const isExpanded = state.expandedCategories[cat.id] || false;
+        const visibleTasks = isExpanded ? catTasks : catTasks.slice(0, MAX_TASKS_COLLAPSED);
+        const hiddenCount = catTasks.length - MAX_TASKS_COLLAPSED;
+
+        const card = document.createElement('div');
+        card.className = 'category-card';
+
+        // Header with follower info
+        const followerHtml = cat.follower_text 
+          ? `<div class="cat-follower-row"><span class="cat-follower-icon">👁️</span><span class="cat-follower-text">${cat.follower_text}</span></div>` 
+          : '';
+
+        card.innerHTML = `
+          <div class="category-header" style="background:${cat.bg_color};border-color:${cat.border_color};">
+            <div class="category-header-title" style="color:${cat.color};">
+              <span>🏷️</span><span>${cat.title}</span>
+            </div>
+            <span class="category-badge-count" style="color:${cat.color};">${catTasks.length} việc</span>
+          </div>
+          ${followerHtml}
+          <div class="category-tasks-dropzone" id="cdz_${cat.id}"></div>
+        `;
+
+        const dz = card.querySelector(`#cdz_${cat.id}`);
+        if (isLeader) setupDropzone(dz, taskId => assignTaskToCategory(taskId, cat.id));
+
+        if (catTasks.length === 0) {
+          dz.innerHTML = `<div class="empty-task-placeholder">Chưa có công việc</div>`;
+        } else {
+          visibleTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: true })));
+
+          // Expand/Collapse button
+          if (catTasks.length > MAX_TASKS_COLLAPSED) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'cat-expand-btn';
+            toggleBtn.dataset.catId = cat.id;
+            if (isExpanded) {
+              toggleBtn.innerHTML = `<span class="cat-expand-icon">▲</span> Thu gọn`;
+              toggleBtn.classList.add('expanded');
+            } else {
+              toggleBtn.innerHTML = `<span class="cat-expand-icon">▼</span> Xem thêm <span class="cat-expand-count">(${hiddenCount})</span>`;
+            }
+            dz.appendChild(toggleBtn);
+          }
+        }
+
+        grid.appendChild(card);
+      });
+
+      sectionBlock.appendChild(grid);
+      container.appendChild(sectionBlock);
     });
-    el.mainContent.appendChild(grid);
+
+    el.mainContent.appendChild(container);
+
+    // ── Bind events ──
+    container.querySelectorAll('.cat-filter-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.categoryGroupFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    container.querySelectorAll('.cat-expand-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const catId = btn.dataset.catId;
+        state.expandedCategories[catId] = !state.expandedCategories[catId];
+        render();
+      });
+    });
   }
 
   // =========================================================================
@@ -916,7 +1056,13 @@
             <div class="form-group">
               <label class="form-label" for="selfTaskCategory">Nhóm công việc</label>
               <select id="selfTaskCategory" class="form-control">
-                ${state.categories.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}
+                ${(() => {
+                  let html = '';
+                  const secMap = {};
+                  state.categories.forEach(c => { const s = c.section || 'Khác'; if (!secMap[s]) secMap[s] = []; secMap[s].push(c); });
+                  Object.keys(secMap).forEach(s => { html += `<optgroup label="${s}">`; secMap[s].forEach(c => { html += `<option value="${c.id}">${c.title}</option>`; }); html += '</optgroup>'; });
+                  return html;
+                })()}
                 <option value="__NEW__">➕ Tạo nhóm mới...</option>
               </select>
             </div>
@@ -1698,8 +1844,8 @@
       category_id: catId,
       assignee_ids: [currentEmpId],
       assignee_text: emp ? emp.name : '',
-      follower_ids: [],
-      follower_text: '',
+      follower_ids: (cat && cat.follower_ids) ? cat.follower_ids : [],
+      follower_text: (cat && cat.follower_text) ? cat.follower_text : '',
       deadline: formatFullDate(deadlineEl.value.trim()),
       status: 'in_progress',
       priority: 'normal',
@@ -1788,7 +1934,23 @@
   // TASK MODAL (LEADER)
   // =========================================================================
   function populateFormSelects() {
-    el.fieldCategory.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.title}</option>`).join('') + `<option value="__NEW__">➕ Tạo nhóm công việc mới...</option>`;
+    // Group categories by section for optgroup display
+    let catHtml = '';
+    const sectionMap = {};
+    state.categories.forEach(c => {
+      const sec = c.section || 'Khác';
+      if (!sectionMap[sec]) sectionMap[sec] = [];
+      sectionMap[sec].push(c);
+    });
+    Object.keys(sectionMap).forEach(sec => {
+      catHtml += `<optgroup label="${sec}">`;
+      sectionMap[sec].forEach(c => {
+        catHtml += `<option value="${c.id}">${c.title}</option>`;
+      });
+      catHtml += `</optgroup>`;
+    });
+    catHtml += `<option value="__NEW__">➕ Tạo nhóm công việc mới...</option>`;
+    el.fieldCategory.innerHTML = catHtml;
     const teams = [
       { id: 'BLĐ', name: 'Ban Lãnh đạo' },
       { id: 'TKT', name: 'Tổ Kỹ thuật' },
@@ -1810,6 +1972,16 @@
       <option value="emp_012170">Phan Thế Vinh (Phó phòng)</option>
       <option value="emp_010333">Nguyễn Huy (Phó phòng)</option>
       <option value="emp_012554">Nguyễn Đình Hanh (Tổ trưởng KT)</option>`;
+
+    // Auto-fill follower when category changes
+    el.fieldCategory.addEventListener('change', function() {
+      const catId = this.value;
+      if (catId === '__NEW__') return;
+      const cat = state.categories.find(c => c.id === catId);
+      if (cat && cat.follower_ids && cat.follower_ids.length > 0) {
+        el.fieldFollower.value = cat.follower_ids[0];
+      }
+    });
   }
 
   function openTaskModal(taskId = null, isStagingOnly = false) {
@@ -1834,6 +2006,11 @@
       el.taskForm.reset();
       el.fieldTaskId.value = '';
       el.fieldCategory.value = state.categories[0].id;
+      // Auto-fill follower from first category
+      const defaultCat = state.categories[0];
+      if (defaultCat && defaultCat.follower_ids && defaultCat.follower_ids.length > 0) {
+        el.fieldFollower.value = defaultCat.follower_ids[0];
+      }
       el.fieldStatus.value = 'in_progress';
       el.fieldPriority.value = 'normal';
       if (isStagingOnly) el.fieldAssignee.value = '';

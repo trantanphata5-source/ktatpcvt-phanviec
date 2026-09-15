@@ -36,95 +36,235 @@ window.KTAT_AUTH_DATA = {
 
 window.INITIAL_APP_DATA = {
   "categories": [
+    // ═══ A. QUẢN LÝ VẬN HÀNH & KỸ THUẬT LƯỚI ĐIỆN (1.1 – 1.8) ═══
     {
-      "id": "cat_scl_2026",
-      "code": "I",
-      "title": "I. Công tác Sửa chữa lớn 2026",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#2563eb",
-      "bg_color": "#eff6ff",
-      "border_color": "#bfdbfe"
+      "id": "cat_a01", "code": "1.1",
+      "title": "1.1. Quản lý vận hành lưới điện trung, hạ thế",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012054", "emp_012170"],
+      "follower_text": "TP Nguyễn Đức Minh, PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_scl_2027",
-      "code": "II",
-      "title": "II. Công tác Sửa chữa lớn 2027",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#059669",
-      "bg_color": "#ecfdf5",
-      "border_color": "#a7f3d0"
+      "id": "cat_a02", "code": "1.2",
+      "title": "1.2. Tự động hóa lưới điện (DAS), mini-SCADA, lưới điện thông minh",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_dtxd_2026",
-      "code": "III",
-      "title": "III. Công tác ĐTXD 2026",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#7c3aed",
-      "bg_color": "#f5f3ff",
-      "border_color": "#ddd6fe"
+      "id": "cat_a03", "code": "1.3",
+      "title": "1.3. Quản lý máy biến áp & trạm biến áp chuyên dùng",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_dtxd_2027",
-      "code": "IV",
-      "title": "IV. Công tác ĐTXD 2027",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#9333ea",
-      "bg_color": "#faf5ff",
-      "border_color": "#f3e8ff"
+      "id": "cat_a04", "code": "1.4",
+      "title": "1.4. Thiết bị đóng cắt, cáp ngầm, sơ đồ đơn tuyến",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_dtxd_2028",
-      "code": "V",
-      "title": "V. Công tác ĐTXD 2028",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#6d28d9",
-      "bg_color": "#ede9fe",
-      "border_color": "#c4b5fd"
+      "id": "cat_a05", "code": "1.5",
+      "title": "1.5. Quản lý sự cố, độ tin cậy CCĐN, OMS (SAIDI/SAIFI/MAIFI)",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_knkh",
-      "code": "VI",
-      "title": "VI. Xử lý khiếu nại khách hàng",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#dc2626",
-      "bg_color": "#fef2f2",
-      "border_color": "#fecaca"
+      "id": "cat_a06", "code": "1.6",
+      "title": "1.6. Công tác CBM (chẩn đoán tình trạng thiết bị)",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_atld",
-      "code": "VII",
-      "title": "VII. Công tác An toàn lao động",
-      "section": "A. Công tác Tổ Kỹ thuật",
-      "color": "#d97706",
-      "bg_color": "#fffbeb",
-      "border_color": "#fde68a"
+      "id": "cat_a07", "code": "1.7",
+      "title": "1.7. Cung cấp điện, tổn thất điện năng, dự báo phụ tải",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
     },
     {
-      "id": "cat_gis",
-      "code": "VIII",
-      "title": "VIII. Biên tập GIS",
-      "section": "B. Công tác Tổ CNTT",
-      "color": "#0891b2",
-      "bg_color": "#ecfeff",
-      "border_color": "#a5f3fc"
+      "id": "cat_a08", "code": "1.8",
+      "title": "1.8. Nhà máy điện Diesel",
+      "section": "A. Quản lý Vận hành & Kỹ thuật Lưới điện",
+      "section_code": "A",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#2563eb", "bg_color": "#eff6ff", "border_color": "#bfdbfe"
+    },
+    // ═══ B. ĐẦU TƯ XÂY DỰNG – SỬA CHỮA – ĐẤU THẦU (2.1 – 2.5) ═══
+    {
+      "id": "cat_b01", "code": "2.1",
+      "title": "2.1. ĐTXD: danh mục, thiết kế, giám sát, nghiệm thu, quyết toán",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
     },
     {
-      "id": "cat_pmis",
-      "code": "IX",
-      "title": "IX. Hệ thống PMIS",
-      "section": "B. Công tác Tổ CNTT",
-      "color": "#0d9488",
-      "bg_color": "#f0fdfa",
-      "border_color": "#99f6e4"
+      "id": "cat_b02", "code": "2.2",
+      "title": "2.2. Sửa chữa lớn (SCL)",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_010333"],
+      "follower_text": "PP Nguyễn Huy",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
     },
     {
-      "id": "cat_cntt",
-      "code": "X",
-      "title": "X. Công tác CNTT chung",
-      "section": "B. Công tác Tổ CNTT",
-      "color": "#4f46e5",
-      "bg_color": "#eef2ff",
-      "border_color": "#c7d2fe"
+      "id": "cat_b03", "code": "2.3",
+      "title": "2.3. Sửa chữa thường xuyên (SCTX), bảo trì lưới điện",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
+    },
+    {
+      "id": "cat_b04", "code": "2.4",
+      "title": "2.4. Công tác đấu thầu (HSMT, Tổ chuyên gia, thẩm định KQLCNT)",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_010333", "emp_012170"],
+      "follower_text": "PP Nguyễn Huy, PP Phan Thế Vinh",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
+    },
+    {
+      "id": "cat_b05", "code": "2.5",
+      "title": "2.5. Thẩm tra kỹ thuật & quản lý chất lượng công trình điện",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
+    },
+    // ═══ C. TÀI SẢN – BÀN GIAO CÔNG TRÌNH – VẬT TƯ (3.1 – 3.3) ═══
+    {
+      "id": "cat_c01", "code": "3.1",
+      "title": "3.1. Tiếp nhận, bàn giao công trình điện theo NĐ 02/2024",
+      "section": "C. Tài sản – Bàn giao Công trình – Vật tư",
+      "section_code": "C",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#0d9488", "bg_color": "#f0fdfa", "border_color": "#99f6e4"
+    },
+    {
+      "id": "cat_c02", "code": "3.2",
+      "title": "3.2. Kiểm kê tài sản, kiểm kê & thanh lý VTTB thu hồi",
+      "section": "C. Tài sản – Bàn giao Công trình – Vật tư",
+      "section_code": "C",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#0d9488", "bg_color": "#f0fdfa", "border_color": "#99f6e4"
+    },
+    {
+      "id": "cat_c03", "code": "3.3",
+      "title": "3.3. Xây dựng tiêu chuẩn VTTB, nghiệm thu VTTB mua mới",
+      "section": "C. Tài sản – Bàn giao Công trình – Vật tư",
+      "section_code": "C",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#0d9488", "bg_color": "#f0fdfa", "border_color": "#99f6e4"
+    },
+    // ═══ D. AN TOÀN – MÔI TRƯỜNG (4.1 – 4.3) ═══
+    {
+      "id": "cat_d01", "code": "4.1",
+      "title": "4.1. ATVSLĐ, điều tra TNLĐ, kiểm tra an toàn hiện trường",
+      "section": "D. An toàn – Môi trường",
+      "section_code": "D",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#d97706", "bg_color": "#fffbeb", "border_color": "#fde68a"
+    },
+    {
+      "id": "cat_d02", "code": "4.2",
+      "title": "4.2. PCCC, PCTT&TKCN, bảo vệ môi trường",
+      "section": "D. An toàn – Môi trường",
+      "section_code": "D",
+      "follower_ids": ["emp_012054", "emp_012170"],
+      "follower_text": "TP Nguyễn Đức Minh, PP Phan Thế Vinh",
+      "color": "#d97706", "bg_color": "#fffbeb", "border_color": "#fde68a"
+    },
+    {
+      "id": "cat_d03", "code": "4.3",
+      "title": "4.3. Hành lang an toàn lưới điện cao áp",
+      "section": "D. An toàn – Môi trường",
+      "section_code": "D",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#d97706", "bg_color": "#fffbeb", "border_color": "#fde68a"
+    },
+    // ═══ E. CÔNG NGHỆ THÔNG TIN – DỮ LIỆU – CHUYỂN ĐỔI SỐ (5.1 – 5.6) ═══
+    {
+      "id": "cat_e01", "code": "5.1",
+      "title": "5.1. GIS lưới điện trung thế, hạ thế",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_010333"],
+      "follower_text": "PP Nguyễn Huy",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    {
+      "id": "cat_e02", "code": "5.2",
+      "title": "5.2. PMIS & đối soát dữ liệu quản lý kỹ thuật",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_010333"],
+      "follower_text": "PP Nguyễn Huy",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    {
+      "id": "cat_e03", "code": "5.3",
+      "title": "5.3. Hạ tầng CNTT, máy chủ, mạng, an toàn thông tin",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_010333"],
+      "follower_text": "PP Nguyễn Huy",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    {
+      "id": "cat_e04", "code": "5.4",
+      "title": "5.4. Chuyển đổi số, AI, phân tích dữ liệu, sáng kiến – ĐMST",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_010333"],
+      "follower_text": "PP Nguyễn Huy",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    {
+      "id": "cat_e05", "code": "5.5",
+      "title": "5.5. Hồ sơ QLKT & báo cáo QLKT định kỳ",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    {
+      "id": "cat_e06", "code": "5.6",
+      "title": "5.6. Công tác ISO",
+      "section": "E. Công nghệ Thông tin – Dữ liệu – Chuyển đổi số",
+      "section_code": "E",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
     }
   ],
 

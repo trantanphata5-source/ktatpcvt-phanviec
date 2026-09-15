@@ -900,7 +900,7 @@
   // =========================================================================
   const CATEGORY_SECTIONS = [
     { code: 'A', label: 'A. Vận hành & KT Lưới điện', icon: '⚡', shortLabel: 'A. Vận hành' },
-    { code: 'B', label: 'B. ĐTXD – Sửa chữa – Đấu thầu', icon: '🏗️', shortLabel: 'B. ĐTXD' },
+    { code: 'B', label: 'B. ĐTXD – Sửa chữa – Đấu thầu', icon: '🏗️', shortLabel: 'B. ĐT-SC-ĐT' },
     { code: 'C', label: 'C. Tài sản – Bàn giao – Vật tư', icon: '📦', shortLabel: 'C. Tài sản' },
     { code: 'D', label: 'D. An toàn – Môi trường', icon: '🛡️', shortLabel: 'D. An toàn' },
     { code: 'E', label: 'E. CNTT – Dữ liệu – CĐS', icon: '💻', shortLabel: 'E. CNTT' }

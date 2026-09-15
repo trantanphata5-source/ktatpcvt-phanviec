@@ -978,7 +978,7 @@
     }
 
     const followerBadgeHtml = isLeaderMember
-      ? `<span class="employee-follower-count" data-emp-id="${emp.id}" title="Công việc theo dõi – Bấm để xem chi tiết">👁️ ${followerTasks.length} theo dõi</span>`
+      ? `<span class="employee-follower-count" data-emp-id="${emp.id}" title="Công việc theo dõi – Bấm để xem chi tiết">📋 ${followerTasks.length} theo dõi</span>`
       : '';
 
     col.innerHTML = `
@@ -1062,7 +1062,7 @@
             const emp = state.employees.find(e => e.id === id);
             return emp ? emp.name : id;
           }).join(', ') || '<em>Chưa phân công</em>';
-          const statusLabel = t.status === 'done' ? '✅ Xong' : t.status === 'in_progress' ? '🔄 Đang làm' : '⏳ Chờ';
+          const statusLabel = t.status === 'completed' ? '✅ Xong' : t.status === 'in_progress' ? '🔄 Đang làm' : '⏳ Chờ';
           return `<tr>
             <td>${i + 1}</td>
             <td class="follower-popup-task-title">${t.title}</td>
@@ -1076,7 +1076,7 @@
     backdrop.innerHTML = `
       <div class="follower-popup-dialog">
         <div class="follower-popup-header">
-          <h3>👁️ Công việc theo dõi – ${leader.name}</h3>
+          <h3>📋 Công việc theo dõi – ${leader.name}</h3>
           <span class="follower-popup-subtitle">${leader.position} • ${tasks.length} công việc</span>
           <button class="modal-close-btn follower-popup-close">&times;</button>
         </div>
@@ -1086,7 +1086,7 @@
               <tr>
                 <th>STT</th>
                 <th>Công việc</th>
-                <th>Nhóm công tác</th>
+                <th>Nhóm công việc</th>
                 <th>Người phụ trách</th>
                 <th>Trạng thái</th>
               </tr>

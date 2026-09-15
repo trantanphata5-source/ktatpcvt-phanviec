@@ -274,6 +274,16 @@ window.INITIAL_APP_DATA = {
       "follower_ids": ["emp_012170"],
       "follower_text": "PP Phan Thế Vinh",
       "color": "#4f46e5", "bg_color": "#eef2ff", "border_color": "#c7d2fe"
+    },
+    // ═══ F. CÔNG VIỆC KHÁC (6.1) ═══
+    {
+      "id": "cat_f01", "code": "6.1",
+      "title": "6.1. Phối hợp Phòng Ban khác",
+      "section": "F. Công việc khác",
+      "section_code": "F",
+      "follower_ids": ["emp_012054"],
+      "follower_text": "TP Nguyễn Đức Minh",
+      "color": "#e11d48", "bg_color": "#fff1f2", "border_color": "#fecdd3"
     }
   ],
 

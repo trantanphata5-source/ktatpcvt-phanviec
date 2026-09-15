@@ -76,7 +76,8 @@ var LEGACY_CATEGORY_MAP = [
   { match: /^(VI\.\s*|.*ATVSLĐ|.*An\s*toàn)/i, replacement: '4.1. ATVSLĐ, điều tra TNLĐ, kiểm tra an toàn hiện trường' },
   { match: /^(VII\.\s*|.*PCCC)/i, replacement: '4.2. PCCC, PCTT&TKCN, bảo vệ môi trường' },
   { match: /^(VIII\.\s*|.*Hành\s*lang)/i, replacement: '4.3. Hành lang an toàn lưới điện cao áp' },
-  { match: /^(IX\.\s*|.*GIS)/i, replacement: '5.1. GIS lưới điện trung thế, hạ thế' }
+  { match: /^(IX\.\s*|.*GIS)/i, replacement: '5.1. GIS lưới điện trung thế, hạ thế' },
+  { match: /^(6\.1|.*Phối\s*hợp\s*Phòng\s*Ban)/i, replacement: '6.1. Phối hợp Phòng Ban khác' }
 ];
 
 function normalizeCategory(catStr) {

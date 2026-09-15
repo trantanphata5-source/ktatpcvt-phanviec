@@ -990,7 +990,8 @@
     { code: 'B', label: 'B. ĐTXD – Sửa chữa – Đấu thầu', icon: '🏗️', shortLabel: 'B. ĐT-SC-ĐT' },
     { code: 'C', label: 'C. Tài sản – Bàn giao – Vật tư', icon: '📦', shortLabel: 'C. Tài sản' },
     { code: 'D', label: 'D. An toàn – Môi trường', icon: '🛡️', shortLabel: 'D. An toàn' },
-    { code: 'E', label: 'E. CNTT – Dữ liệu – CĐS', icon: '💻', shortLabel: 'E. CNTT' }
+    { code: 'E', label: 'E. CNTT – Dữ liệu – CĐS', icon: '💻', shortLabel: 'E. CNTT' },
+    { code: 'F', label: 'F. Công việc khác', icon: '📂', shortLabel: 'F. Việc khác' }
   ];
 
   const MAX_TASKS_COLLAPSED = 3;

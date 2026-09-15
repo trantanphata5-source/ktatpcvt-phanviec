@@ -1512,6 +1512,7 @@ body {
 .cat-filter-c.active { background: #0d9488; border-color: #0d9488; }
 .cat-filter-d.active { background: #d97706; border-color: #d97706; }
 .cat-filter-e.active { background: #4f46e5; border-color: #4f46e5; }
+.cat-filter-f.active { background: #e11d48; border-color: #e11d48; }
 
 /* ── Section Block ── */
 .cat-section-block {
@@ -1535,6 +1536,7 @@ body {
 .cat-section-c { border-left-color: #0d9488; background: linear-gradient(135deg, #f0fdfa 0%, #fff 100%); }
 .cat-section-d { border-left-color: #d97706; background: linear-gradient(135deg, #fffbeb 0%, #fff 100%); }
 .cat-section-e { border-left-color: #4f46e5; background: linear-gradient(135deg, #eef2ff 0%, #fff 100%); }
+.cat-section-f { border-left-color: #e11d48; background: linear-gradient(135deg, #fff1f2 0%, #fff 100%); }
 
 .cat-section-title-wrap {
   display: flex;
@@ -3044,7 +3046,7 @@ body {
 }
 
 /* ==========================================================================
-   RESPONSIVE
+   RESPONSIVE & MOBILE OPTIMIZATION
    ========================================================================== */
 @media (max-width: 1024px) {
   .dashboard-grid-2col {
@@ -3062,57 +3064,611 @@ body {
 }
 
 @media (max-width: 768px) {
+  :root {
+    --header-height: auto;
+  }
+
+  /* ── Mobile Header ── */
   .header-top {
     flex-wrap: wrap;
-    padding: 10px 16px;
+    padding: 8px 12px;
+    gap: 8px;
   }
+
+  .brand-section {
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  .brand-titles {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .brand-subtitle {
+    font-size: 8.5px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .brand-main-title {
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
+  .user-menu {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .user-info-small {
+    display: none; /* Ẩn tên dài trên mobile để tiết kiệm diện tích, avatar và nút vẫn đầy đủ */
+  }
+
+  .logout-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    min-height: 34px;
+  }
+
+  #changePasswordBtn {
+    padding: 5px 8px;
+    font-size: 12px;
+    min-height: 34px;
+  }
+
+  /* ── Header Actions Row ── */
+  .header-actions-row {
+    padding: 6px 12px 8px;
+  }
+
   .header-actions {
+    gap: 6px;
+    width: 100%;
     flex-wrap: wrap;
   }
+
   .search-box {
     width: 100%;
+    min-height: 38px;
   }
+
+  .search-box input {
+    font-size: 14px;
+  }
+
+  .header-actions .btn {
+    padding: 7px 10px;
+    font-size: 11.5px;
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 38px;
+  }
+
+  /* ── Nav Tabs: Vuốt ngang mượt mà trên điện thoại ── */
+  .header-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 4px 12px 8px;
+  }
+
+  .view-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 3px;
+    gap: 5px;
+    width: 100%;
+  }
+
+  .view-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 36px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* ── Quick Stats: Cuộn ngang gọn gàng ── */
+  .quick-stats {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    padding: 2px 0;
+    width: 100%;
+  }
+
+  .quick-stats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .stat-pill {
+    font-size: 11px;
+    padding: 4px 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Main Content Container ── */
   .main-content {
-    padding: 16px;
+    padding: 12px 10px 30px;
   }
+
+  /* ── Category Filter Bar: Vuốt ngang chọn nhóm A, B, C, D, E, F ── */
+  .cat-filter-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 10px;
+    gap: 6px;
+    margin: -4px -6px 12px;
+    border-radius: var(--radius-md);
+  }
+
+  .cat-filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cat-filter-pill {
+    padding: 6px 11px;
+    font-size: 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .category-view-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .category-card {
+    min-height: auto;
+  }
+
+  .category-header {
+    padding: 10px 12px;
+  }
+
+  .category-header-title {
+    font-size: 13px;
+  }
+
+  /* ── Personal View (Nhân viên tự nhập việc trên điện thoại) ── */
+  .employee-personal-container {
+    padding: 0;
+    gap: 14px;
+  }
+
+  .personal-welcome-card {
+    padding: 14px 12px;
+    border-radius: var(--radius-md);
+    gap: 10px;
+  }
+
+  .personal-welcome-avatar,
+  .personal-welcome-avatar-fallback {
+    width: 44px;
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .personal-welcome-info h2 {
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+
+  .personal-welcome-info p {
+    font-size: 11.5px;
+  }
+
+  .personal-stats-row {
+    gap: 6px;
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .personal-stat-item {
+    padding: 6px 8px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .self-input-section {
+    border-radius: var(--radius-md);
+  }
+
+  .self-input-header {
+    padding: 10px 14px;
+  }
+
+  .self-input-header h3 {
+    font-size: 13.5px;
+  }
+
+  .self-input-body {
+    padding: 12px;
+  }
+
+  /* Chống iOS tự động phóng to (zoom in) màn hình khi chạm vào ô input */
+  .form-control,
+  input[type="text"],
+  input[type="password"],
+  select.form-control,
+  textarea.form-control {
+    font-size: 16px !important;
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  #selfTaskSubmitBtn {
+    min-height: 46px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 8px;
+    margin-top: 4px;
+  }
+
+  .personal-tasks-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .personal-task-panel {
+    border-radius: var(--radius-md);
+  }
+
+  .personal-panel-header {
+    padding: 10px 14px;
+  }
+
+  .personal-task-item {
+    padding: 12px 14px;
+  }
+
+  .personal-task-title {
+    font-size: 13.5px;
+  }
+
+  .personal-task-actions {
+    flex-wrap: wrap;
+  }
+
+  .personal-task-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 36px;
+    font-size: 12px;
+  }
+
+  /* ── Task Cards on Mobile ── */
+  .task-card {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .task-title {
+    font-size: 13.5px;
+  }
+
+  .task-card-footer {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .task-card-footer > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .task-detail-toggle-btn {
+    padding: 5px 10px;
+    font-size: 11.5px;
+    min-height: 30px;
+  }
+
+  .task-detail-expandable {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  /* ── Sidebar (Danh sách chờ) on Mobile ── */
   .staging-sidebar {
     position: fixed;
     right: 0;
-    top: var(--header-height, 114px);
-    z-index: 200;
-    box-shadow: -4px 0 16px rgba(0,0,0,0.1);
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: 85vw;
+    z-index: 500;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+    transition: transform 0.25s ease;
   }
+
   .staging-sidebar.collapsed {
-    right: -320px;
+    transform: translateX(100%);
+    right: 0;
   }
-  .brand-main-title {
-    font-size: 14px;
-  }
-  .login-card {
-    padding: 32px 24px 28px;
-  }
-  .self-input-row {
-    grid-template-columns: 1fr;
-  }
+
+  /* ── Staff View on Mobile ── */
   .staff-columns-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
-  .category-view-grid {
-    grid-template-columns: 1fr;
+
+  .employee-column {
+    border-radius: var(--radius-md);
   }
-  .form-row-2 {
-    grid-template-columns: 1fr;
+
+  .team-group-header {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
+
+  /* ── Modals on Mobile: Bottom Sheet kiểu App ── */
+  .modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-dialog {
+    max-width: 100%;
+    width: 100%;
+    max-height: 90vh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: var(--radius-xl);
+    border-top-right-radius: var(--radius-xl);
+    animation: mobileModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes mobileModalSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .modal-header {
+    padding: 14px 18px;
+  }
+
+  .modal-title {
+    font-size: 15px;
+  }
+
+  .modal-body {
+    padding: 16px 18px;
+  }
+
+  .modal-footer {
+    padding: 12px 18px 20px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 42px;
+    font-size: 13.5px;
+  }
+
+  /* ── Toast on Mobile ── */
+  .toast-container {
+    top: auto;
+    bottom: 20px;
+    left: 12px;
+    right: 12px;
+    align-items: center;
+  }
+
+  .toast {
+    max-width: 100%;
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    transform: translateY(120%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .toast.show {
+    transform: translateY(0);
+  }
+
+  /* ── Report View on Mobile ── */
+  .report-view-container {
+    padding: 4px 0 30px;
+    gap: 14px;
+  }
+
   .report-header-bar {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    gap: 12px;
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .report-title-block {
+    gap: 10px;
+  }
+
+  .report-title-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .report-main-title {
+    font-size: 15px;
+  }
+
+  .report-subtitle {
+    font-size: 11.5px;
+  }
+
   .report-nav-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .week-nav-group {
     width: 100%;
     justify-content: space-between;
   }
+
+  .report-scope-toggle {
+    width: 100%;
+    display: flex;
+  }
+
+  .report-scope-toggle .scope-btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  .report-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .report-kpi-card {
+    padding: 12px 14px;
+  }
+
+  .report-kpi-value {
+    font-size: 20px;
+  }
+
+  .report-toolbar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .report-team-filters {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding-bottom: 3px;
+  }
+
+  .report-team-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .report-team-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 6px 11px;
+    font-size: 11.5px;
+  }
+
+  .report-staff-header {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .report-staff-profile {
+    min-width: 0;
+    width: 100%;
+  }
+
   .report-staff-metrics {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .report-staff-body {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+}
+
+/* ── Màn hình rất nhỏ (< 400px như iPhone SE / Galaxy Mini) ── */
+@media (max-width: 400px) {
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand-main-title {
+    font-size: 11px;
+  }
+
+  .report-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Trang Đăng nhập trên điện thoại ── */
+@media (max-width: 480px) {
+  .login-container {
+    padding: 12px;
+  }
+
+  .login-card {
+    padding: 28px 18px 24px;
+    border-radius: var(--radius-lg);
+  }
+
+  .login-brand-logo {
+    width: 56px;
+    height: 56px;
+    font-size: 26px;
+    margin-bottom: 12px;
+  }
+
+  .login-brand-title {
+    font-size: 17px;
+  }
+
+  .login-btn {
+    min-height: 46px;
+    font-size: 14px;
   }
 }

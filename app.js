@@ -336,70 +336,77 @@
    * Nếu task.category_id không tìm thấy trong state.categories → tìm lại bằng tên.
    */
   function resolveCategoryIds() {
-    if (!state.tasks || !state.categories || state.categories.length === 0) return;
-    const catById = {};
-    const catByTitle = {};
-    const catByCode = {};
-    state.categories.forEach(c => {
-      catById[c.id] = c;
-      catByTitle[c.title.toLowerCase().trim()] = c;
-      if (c.code) catByCode[c.code.toLowerCase().trim()] = c;
-    });
+    try {
+      if (!state.tasks || !state.categories || state.categories.length === 0) return;
+      const catById = {};
+      const catByTitle = {};
+      const catByCode = {};
+      state.categories.forEach(c => {
+        catById[c.id] = c;
+        catByTitle[c.title.toLowerCase().trim()] = c;
+        if (c.code) catByCode[c.code.toLowerCase().trim()] = c;
+      });
 
-    let changed = false;
-    state.tasks.forEach(task => {
-      // Đã khớp → skip
-      if (task.category_id && catById[task.category_id]) return;
+      let changed = false;
+      state.tasks.forEach(task => {
+        // Đã khớp → skip
+        if (task.category_id && catById[task.category_id]) return;
 
-      let matched = null;
+        let matched = null;
 
-      // 1) Match bằng category title (text trong cột "Nhóm công tác" của GSheet)
-      const taskCatText = (task.category || '').toLowerCase().trim();
-      if (taskCatText && catByTitle[taskCatText]) {
-        matched = catByTitle[taskCatText];
-      }
-
-      // 2) Match bằng code prefix (ví dụ: "2.1", "5.4")
-      if (!matched && taskCatText) {
-        const codeMatch = taskCatText.match(/^(\d+\.\d+)/);
-        if (codeMatch && catByCode[codeMatch[1]]) {
-          matched = catByCode[codeMatch[1]];
+        // 1) Match bằng category title (text trong cột "Nhóm công tác" của GSheet)
+        const taskCatText = (task.category || '').toLowerCase().trim();
+        if (taskCatText && catByTitle[taskCatText]) {
+          matched = catByTitle[taskCatText];
         }
-      }
 
-      // 3) Fuzzy match: tìm category chứa từ khóa chính
-      if (!matched && taskCatText) {
-        for (const cat of state.categories) {
-          const catLower = cat.title.toLowerCase();
-          // Tách phần sau số: "2.1. ĐTXD: danh mục..." → "đtxd: danh mục..."
-          const catClean = catLower.replace(/^\d+\.\d+\.\s*/, '');
-          const taskClean = taskCatText.replace(/^\d+\.\d+\.\s*/, '');
-          if (catClean && taskClean && (catClean.includes(taskClean) || taskClean.includes(catClean))) {
-            matched = cat;
-            break;
+        // 2) Match bằng code prefix (ví dụ: "2.1", "5.4")
+        if (!matched && taskCatText) {
+          const codeMatch = taskCatText.match(/^(\d+\.\d+)/);
+          if (codeMatch && catByCode[codeMatch[1]]) {
+            matched = catByCode[codeMatch[1]];
           }
         }
-      }
 
-      if (matched) {
-        task.category_id = matched.id;
-        task.category = matched.title;
-        // Cập nhật follower từ category nếu task chưa có
-        if (matched.follower_ids && matched.follower_ids.length > 0 && (!task.follower_ids || task.follower_ids.length === 0)) {
-          task.follower_ids = matched.follower_ids;
-          task.follower_text = matched.follower_text || '';
+        // 3) Fuzzy match: tìm category chứa từ khóa chính
+        if (!matched && taskCatText) {
+          for (const cat of state.categories) {
+            const catLower = cat.title.toLowerCase();
+            const catClean = catLower.replace(/^\d+\.\d+\.\s*/, '');
+            const taskClean = taskCatText.replace(/^\d+\.\d+\.\s*/, '');
+            if (catClean && taskClean && (catClean.includes(taskClean) || taskClean.includes(catClean))) {
+              matched = cat;
+              break;
+            }
+          }
         }
-        changed = true;
-        console.log(`[resolveCategoryIds] Mapped task "${task.title}" → ${matched.title} (${matched.id})`);
-      }
-    });
 
-    if (changed) {
-      console.log('[resolveCategoryIds] Some tasks were re-mapped to new categories');
+        if (matched) {
+          task.category_id = matched.id;
+          task.category = matched.title;
+          if (matched.follower_ids && matched.follower_ids.length > 0 && (!task.follower_ids || task.follower_ids.length === 0)) {
+            task.follower_ids = matched.follower_ids;
+            task.follower_text = matched.follower_text || '';
+          }
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        console.log('[resolveCategoryIds] Some tasks were re-mapped to new categories');
+      }
+    } catch(e) {
+      console.error('[resolveCategoryIds] Error (non-fatal):', e);
     }
   }
 
   function saveData(showToast = true, skipCloud = false) {
+    // ⛔ SAFETY: Không bao giờ lưu nếu tasks rỗng (phòng mất dữ liệu)
+    if (!state.tasks || state.tasks.length === 0) {
+      console.warn('[saveData] BLOCKED: tasks array is empty! Refusing to save to prevent data loss.');
+      if (showToast) notify('warning', '⚠️ Không có dữ liệu để lưu!');
+      return;
+    }
     const timestamp = new Date().toISOString();
     state.lastSavedAt = timestamp;
     const payload = {
@@ -410,6 +417,8 @@
       savedAt: timestamp,
       lastModified: timestamp
     };
+    // Backup dữ liệu tốt nhất trước khi ghi đè
+    localStorage.setItem(STORAGE_KEY + '_backup', localStorage.getItem(STORAGE_KEY) || '');
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     if (showToast) notify('success', 'Đã lưu dữ liệu!');
     if (state.cloudApiUrl && !skipCloud) {
@@ -425,6 +434,12 @@
   // =========================================================================
   function pushToCloud(payload) {
     if (!state.cloudApiUrl) return;
+    // ⛔ SAFETY: Chặn push nếu dữ liệu rỗng
+    if (!payload.tasks || payload.tasks.length === 0) {
+      console.warn('[pushToCloud] BLOCKED: empty tasks! Will not push to cloud.');
+      updateSyncUI('local', 'Chặn: dữ liệu rỗng');
+      return;
+    }
     const payloadStr = JSON.stringify(payload);
     fetch(state.cloudApiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: payloadStr })
       .then(() => { state.hasUnsavedLocalChanges = false; updateSyncUI('synced', 'Đã đồng bộ máy chủ'); })
@@ -472,6 +487,13 @@
     }
     const rd = response.data;
     if (!rd.tasks || !Array.isArray(rd.tasks)) { state.initialCloudSyncDone = true; return; }
+    // ⛔ SAFETY: Không ghi đè local data nếu remote trả về 0 task nhưng local có dữ liệu
+    if (rd.tasks.length === 0 && state.tasks && state.tasks.length > 0) {
+      console.warn('[handleCloudResponse] BLOCKED: Remote returned 0 tasks but local has ' + state.tasks.length + ' tasks. Refusing to apply.');
+      state.initialCloudSyncDone = true;
+      updateSyncUI('synced');
+      return;
+    }
     
     // So khớp thời gian và số lượng công việc: nếu dữ liệu remote mới hơn hoặc số công việc khác biệt (ví dụ người dùng xóa bớt trên Sheet)
     const remoteTime = new Date(rd.lastModified || rd.savedAt || 0).getTime();

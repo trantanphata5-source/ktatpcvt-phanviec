@@ -3405,22 +3405,13 @@ body {
     padding: 8px 10px;
   }
 
-  /* ── Sidebar (Danh sách chờ) on Mobile ── */
+  /* ── Sidebar (Danh sách chờ) on Mobile: ẩn hoàn toàn vì kéo thả không khả dụng trên cảm ứng ── */
   .staging-sidebar {
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 300px;
-    max-width: 85vw;
-    z-index: 500;
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
-    transition: transform 0.25s ease;
+    display: none !important;
   }
 
-  .staging-sidebar.collapsed {
-    transform: translateX(100%);
-    right: 0;
+  #toggleSidebarBtn {
+    display: none !important;
   }
 
   /* ── Staff View on Mobile ── */

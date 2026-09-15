@@ -83,6 +83,11 @@ var LEGACY_CATEGORY_MAP = [
 function normalizeCategory(catStr) {
   if (!catStr) return '1.1. Quản lý vận hành lưới điện trung, hạ thế';
   var s = String(catStr).trim();
+  // NẾU ĐÃ Ở ĐỊNH DẠNG MỚI (bắt đầu bằng "số.số") → trả về ngay, KHÔNG chạy qua bảng ánh xạ legacy
+  // Ví dụ: "5.3. Hạ tầng CNTT..." đã đúng rồi, không cần normalize
+  if (/^\d+\.\d+\.?\s/.test(s)) {
+    return s;
+  }
   for (var i = 0; i < LEGACY_CATEGORY_MAP.length; i++) {
     if (LEGACY_CATEGORY_MAP[i].match.test(s)) {
       return LEGACY_CATEGORY_MAP[i].replacement;

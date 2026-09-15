@@ -53,8 +53,65 @@
     reportMode: 'week', // 'week' or 'all'
     reportTeamFilter: 'ALL',
     reportStaffSearch: '',
-    reportExpandedStaff: {}
+    reportExpandedStaff: {},
+    // Preserved form state for personal view self-input
+    _savedFormState: null
   };
+
+  // Check if user is actively editing a form field (typing in input/textarea/select)
+  function isUserEditingForm() {
+    const activeEl = document.activeElement;
+    if (!activeEl) return false;
+    const tag = activeEl.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (activeEl.isContentEditable) return true;
+    return false;
+  }
+
+  // Save personal view self-input form values before render destroys them
+  function savePersonalFormState() {
+    const titleEl = document.getElementById('selfTaskTitle');
+    const detailEl = document.getElementById('selfTaskDetail');
+    const catEl = document.getElementById('selfTaskCategory');
+    const deadlineEl = document.getElementById('selfTaskDeadline');
+    if (!titleEl) return null;
+    return {
+      title: titleEl.value || '',
+      detail: detailEl ? detailEl.value || '' : '',
+      category: catEl ? catEl.value || '' : '',
+      deadline: deadlineEl ? deadlineEl.value || '' : '',
+      focusedId: document.activeElement ? document.activeElement.id : null,
+      selectionStart: document.activeElement ? document.activeElement.selectionStart : null,
+      selectionEnd: document.activeElement ? document.activeElement.selectionEnd : null
+    };
+  }
+
+  // Restore personal view self-input form values after render rebuilt DOM
+  function restorePersonalFormState(saved) {
+    if (!saved) return;
+    const titleEl = document.getElementById('selfTaskTitle');
+    const detailEl = document.getElementById('selfTaskDetail');
+    const catEl = document.getElementById('selfTaskCategory');
+    const deadlineEl = document.getElementById('selfTaskDeadline');
+    if (titleEl && saved.title) titleEl.value = saved.title;
+    if (detailEl && saved.detail) detailEl.value = saved.detail;
+    if (catEl && saved.category) {
+      // Only restore if the option still exists
+      const opt = Array.from(catEl.options).find(o => o.value === saved.category);
+      if (opt) catEl.value = saved.category;
+    }
+    if (deadlineEl && saved.deadline) deadlineEl.value = saved.deadline;
+    // Restore focus and cursor position
+    if (saved.focusedId) {
+      const focusEl = document.getElementById(saved.focusedId);
+      if (focusEl) {
+        focusEl.focus();
+        if (typeof saved.selectionStart === 'number' && focusEl.setSelectionRange) {
+          try { focusEl.setSelectionRange(saved.selectionStart, saved.selectionEnd); } catch(e) {}
+        }
+      }
+    }
+  }
 
   // =========================================================================
   // DOM ELEMENTS
@@ -145,10 +202,10 @@
       updateSyncUI('syncing', 'Đang kết nối...');
       pullFromCloud(false);
       setInterval(() => {
-        if (state.cloudApiUrl && !document.hidden && !state.hasUnsavedLocalChanges && !state.draggedTaskId && !state.editingTaskId) {
+        if (state.cloudApiUrl && !document.hidden && !state.hasUnsavedLocalChanges && !state.draggedTaskId && !state.editingTaskId && !isUserEditingForm()) {
           pullFromCloud(false);
         }
-      }, 5000);
+      }, 15000);
     }
   }
 
@@ -332,6 +389,9 @@
     
     state.initialCloudSyncDone = true;
     if (shouldApply) {
+      // Save personal form state before render destroys it
+      const formState = (state.activeView === 'personal') ? savePersonalFormState() : null;
+
       state.tasks = rd.tasks;
       if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) state.categories = rd.categories;
       if (rd.employees && Array.isArray(rd.employees) && rd.employees.length > 0) {
@@ -354,6 +414,10 @@
       state.hasUnsavedLocalChanges = false;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ categories: state.categories, employees: state.employees, tasks: state.tasks, savedAt: state.lastSavedAt }));
       render(); updateQuickStats(); updateSyncUI('synced');
+
+      // Restore personal form state after render rebuilt DOM
+      if (formState) restorePersonalFormState(formState);
+
       if (manual) notify('success', 'Đã cập nhật từ Google Sheet!');
     } else { updateSyncUI('synced'); }
   }
@@ -444,12 +508,14 @@
           if (p.categories) state.categories = p.categories;
           if (p.employees) state.employees = p.employees;
           state.lastSavedAt = p.savedAt || new Date().toISOString();
+          const formState = (state.activeView === 'personal') ? savePersonalFormState() : null;
           render(); updateQuickStats();
+          if (formState) restorePersonalFormState(formState);
         } catch(err) {}
       }
     });
 
-    window.addEventListener('focus', () => { if (state.cloudApiUrl) pullFromCloud(false); });
+    window.addEventListener('focus', () => { if (state.cloudApiUrl && !isUserEditingForm()) pullFromCloud(false); });
   }
 
   // =========================================================================

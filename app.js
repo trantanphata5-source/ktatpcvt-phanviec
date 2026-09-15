@@ -432,6 +432,40 @@
   // =========================================================================
   // CLOUD SYNC
   // =========================================================================
+  function pushSingleAction(action, data) {
+    if (!state.cloudApiUrl) return;
+    const payload = Object.assign({ action: action, timestamp: new Date().toISOString() }, data);
+    const payloadStr = JSON.stringify(payload);
+    updateSyncUI('syncing', 'Đang lưu máy chủ...');
+    fetch(state.cloudApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: payloadStr
+    })
+    .then(r => r.json().catch(() => null))
+    .then(res => {
+      state.hasUnsavedLocalChanges = false;
+      updateSyncUI('synced', 'Đã đồng bộ');
+      if (res && res.data && res.data.tasks) {
+        handleCloudResponse(res, false);
+      }
+    })
+    .catch(() => {
+      fetch(state.cloudApiUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: payloadStr
+      })
+      .then(() => {
+        state.hasUnsavedLocalChanges = false;
+        updateSyncUI('synced', 'Đã đồng bộ');
+        setTimeout(() => pullFromCloud(false), 1200);
+      })
+      .catch(() => updateSyncUI('local', 'Đã lưu máy'));
+    });
+  }
+
   function pushToCloud(payload) {
     if (!state.cloudApiUrl) return;
     // ⛔ SAFETY: Chặn push nếu dữ liệu rỗng
@@ -442,10 +476,21 @@
     }
     const payloadStr = JSON.stringify(payload);
     fetch(state.cloudApiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: payloadStr })
-      .then(() => { state.hasUnsavedLocalChanges = false; updateSyncUI('synced', 'Đã đồng bộ máy chủ'); })
+      .then(r => r.json().catch(() => null))
+      .then(res => {
+        state.hasUnsavedLocalChanges = false;
+        updateSyncUI('synced', 'Đã đồng bộ máy chủ');
+        if (res && res.data && res.data.tasks) {
+          handleCloudResponse(res, false);
+        }
+      })
       .catch(() => {
         fetch(state.cloudApiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: payloadStr })
-          .then(() => { state.hasUnsavedLocalChanges = false; updateSyncUI('synced', 'Đã đồng bộ'); })
+          .then(() => {
+            state.hasUnsavedLocalChanges = false;
+            updateSyncUI('synced', 'Đã đồng bộ');
+            setTimeout(() => pullFromCloud(false), 1200);
+          })
           .catch(() => updateSyncUI('local', 'Đã lưu máy'));
       });
   }
@@ -495,12 +540,26 @@
       return;
     }
     
-    // So khớp thời gian và số lượng công việc: nếu dữ liệu remote mới hơn hoặc số công việc khác biệt (ví dụ người dùng xóa bớt trên Sheet)
+    // SMART MERGE: Nếu local có việc mới chưa kịp push lên server, hợp nhất vào mảng
+    if (state.tasks && state.tasks.length > 0) {
+      const remoteIds = new Set(rd.tasks.map(t => t.id));
+      const localOnlyTasks = state.tasks.filter(t => t && t.id && !remoteIds.has(t.id));
+      if (localOnlyTasks.length > 0) {
+        console.log('[handleCloudResponse] Giữ lại ' + localOnlyTasks.length + ' công việc local chưa sync lên server');
+        rd.tasks = localOnlyTasks.concat(rd.tasks);
+      }
+    }
+
+    // Đánh lại số STT tuần tự 1..N
+    rd.tasks.forEach((t, idx) => {
+      t.stt = `${idx + 1}`;
+    });
+
     const remoteTime = new Date(rd.lastModified || rd.savedAt || 0).getTime();
     const localTime = state.lastSavedAt ? new Date(state.lastSavedAt).getTime() : 0;
     const shouldApply = manual || !state.initialCloudSyncDone || !state.lastSavedAt || state.lastSavedAt === 0 || 
-                        (remoteTime > localTime && !state.hasUnsavedLocalChanges) || 
-                        (rd.tasks.length !== state.tasks.length && !state.hasUnsavedLocalChanges);
+                        (rd.tasks.length >= state.tasks.length) || 
+                        (remoteTime >= localTime && !state.hasUnsavedLocalChanges);
     
     state.initialCloudSyncDone = true;
     if (shouldApply) {
@@ -512,7 +571,7 @@
       if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) {
         state.categories = rd.categories;
       }
-      // Đảm bảo categories từ INITIAL_APP_DATA luôn được áp dụng (khi code mới deploy với 25 nhóm)
+      // Đảm bảo categories từ INITIAL_APP_DATA luôn được áp dụng
       if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.categories) {
         const initCats = window.INITIAL_APP_DATA.categories;
         if (initCats.length !== state.categories.length || 
@@ -792,7 +851,9 @@
     const emp = state.employees.find(e => e.id === empId);
     if (!task || !emp) return;
     task.in_staging = false; task.assignee_ids = [empId]; task.assignee_text = emp.name;
-    saveData(false); render(); updateQuickStats();
+    saveData(false, true);
+    pushSingleAction('update_task', { task: task });
+    render(); updateQuickStats();
     notify('success', `Đã phân công cho <strong>${emp.name}</strong>`);
   }
 
@@ -801,14 +862,18 @@
     const cat = state.categories.find(c => c.id === catId);
     if (!task || !cat) return;
     task.category_id = catId; task.category = cat.title;
-    saveData(false); render(); updateQuickStats();
+    saveData(false, true);
+    pushSingleAction('update_task', { task: task });
+    render(); updateQuickStats();
   }
 
   function moveToStaging(taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
     task.in_staging = true; task.assignee_ids = []; task.assignee_text = 'Chưa phân công';
-    saveData(false); render(); updateQuickStats();
+    saveData(false, true);
+    pushSingleAction('update_task', { task: task });
+    render(); updateQuickStats();
     notify('info', 'Đã chuyển vào Danh sách chờ');
   }
 
@@ -1233,7 +1298,8 @@
         if (task) {
           task.status = 'completed';
           task.completed_at = new Date().toISOString();
-          saveData(false);
+          saveData(false, true);
+          pushSingleAction('update_task', { task: task });
           render();
           updateQuickStats();
           notify('success', 'Đã đánh dấu hoàn thành!');
@@ -1247,7 +1313,8 @@
         if (task) {
           task.status = 'in_progress';
           delete task.completed_at;
-          saveData(false);
+          saveData(false, true);
+          pushSingleAction('update_task', { task: task });
           render();
           updateQuickStats();
           notify('info', 'Đã mở lại công việc');
@@ -1774,7 +1841,8 @@
         if (task) {
           task.status = 'completed';
           task.completed_at = new Date().toISOString();
-          saveData(false);
+          saveData(false, true);
+          pushSingleAction('update_task', { task: task });
           render();
           updateQuickStats();
           notify('success', '✓ Đã đánh dấu hoàn thành công việc!');
@@ -1789,7 +1857,8 @@
         if (task) {
           task.status = 'in_progress';
           delete task.completed_at;
-          saveData(false);
+          saveData(false, true);
+          pushSingleAction('update_task', { task: task });
           render();
           updateQuickStats();
           notify('info', '↩ Đã mở lại công việc');
@@ -1969,7 +2038,8 @@
     };
 
     state.tasks.unshift(newTask);
-    saveData(false);
+    saveData(false, true);
+    pushSingleAction('add_task', { task: newTask });
     render();
     updateQuickStats();
     notify('success', 'Đã ghi nhận công việc của bạn!');
@@ -2169,18 +2239,22 @@
           follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
           deadline, status, priority, in_staging: !assigneeId, completed_at
         });
-        saveData(false); notify('success', 'Đã cập nhật!');
+        saveData(false, true);
+        pushSingleAction('update_task', { task: task });
+        notify('success', 'Đã cập nhật!');
       }
     } else {
-      state.tasks.unshift({
+      const newTask = {
         id: `task_${Date.now()}`, stt: `${state.tasks.length + 1}`, title, detail,
         section: cat ? cat.section : '', category: cat ? cat.title : '', subcategory: '', category_id: catId,
         assignee_ids: assigneeId ? [assigneeId] : [], assignee_text: assigneeEmp ? assigneeEmp.name : 'Chưa phân công',
         follower_ids: followerId ? [followerId] : [], follower_text: followerEmp ? followerEmp.name : '',
         deadline, status, priority, in_staging: !assigneeId, sub_assignments: {}, created_by: 'leader',
         completed_at: status === 'completed' ? new Date().toISOString() : undefined
-      });
-      saveData(false);
+      };
+      state.tasks.unshift(newTask);
+      saveData(false, true);
+      pushSingleAction('add_task', { task: newTask });
       notify('success', assigneeId ? `Đã tạo và phân công cho ${assigneeEmp.name}!` : 'Đã thêm vào Danh sách chờ!');
     }
     closeTaskModal(); render(); updateQuickStats();
@@ -2189,8 +2263,11 @@
   function handleDeleteTask() {
     if (!state.editingTaskId) return;
     if (confirm('Xóa công việc này?')) {
-      state.tasks = state.tasks.filter(t => t.id !== state.editingTaskId);
-      saveData(false); closeTaskModal(); render(); updateQuickStats();
+      const delId = state.editingTaskId;
+      state.tasks = state.tasks.filter(t => t.id !== delId);
+      saveData(false, true);
+      pushSingleAction('delete_task', { taskId: delId });
+      closeTaskModal(); render(); updateQuickStats();
       notify('info', 'Đã xóa công việc!');
     }
   }

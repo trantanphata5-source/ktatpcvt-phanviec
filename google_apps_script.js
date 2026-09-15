@@ -62,9 +62,40 @@ function getSpreadsheet() {
 }
 
 // ==============================================================================
+// BẢNG ÁNH XẠ CHUẨN HÓA NHÓM CÔNG TÁC CŨ (LA MÃ) SANG 26 NHÓM RACI MỚI
+// ==============================================================================
+var LEGACY_CATEGORY_MAP = [
+  { match: /^(X\.\s*|cat_cntt|.*CNTT\s*chung)/i, replacement: '5.3. Hạ tầng CNTT, máy chủ, mạng, an toàn thông tin' },
+  { match: /^(XI\.\s*|.*Mua\s*sắm\s*TSCĐ)/i, replacement: '5.3. Hạ tầng CNTT, máy chủ, mạng, an toàn thông tin' },
+  { match: /^(XII\.\s*|.*Sáng\s*kiến)/i, replacement: '5.4. Chuyển đổi số, AI, phân tích dữ liệu, sáng kiến – ĐMST' },
+  { match: /^(I\.\s*|.*vận\s*hành\s*lưới)/i, replacement: '1.1. Quản lý vận hành lưới điện trung, hạ thế' },
+  { match: /^(II\.\s*|.*DAS|.*SCADA)/i, replacement: '1.2. Tự động hóa lưới điện (DAS), mini-SCADA, lưới điện thông minh' },
+  { match: /^(III\.\s*|.*ĐTXD)/i, replacement: '2.1. ĐTXD: danh mục, thiết kế, giám sát, nghiệm thu, quyết toán' },
+  { match: /^(IV\.\s*|.*SCL|.*Sửa\s*chữa\s*lớn)/i, replacement: '2.2. Sửa chữa lớn (SCL)' },
+  { match: /^(V\.\s*|.*SCTX|.*Sửa\s*chữa\s*thường)/i, replacement: '2.3. Sửa chữa thường xuyên (SCTX), bảo trì lưới điện' },
+  { match: /^(VI\.\s*|.*ATVSLĐ|.*An\s*toàn)/i, replacement: '4.1. ATVSLĐ, điều tra TNLĐ, kiểm tra an toàn hiện trường' },
+  { match: /^(VII\.\s*|.*PCCC)/i, replacement: '4.2. PCCC, PCTT&TKCN, bảo vệ môi trường' },
+  { match: /^(VIII\.\s*|.*Hành\s*lang)/i, replacement: '4.3. Hành lang an toàn lưới điện cao áp' },
+  { match: /^(IX\.\s*|.*GIS)/i, replacement: '5.1. GIS lưới điện trung thế, hạ thế' }
+];
+
+function normalizeCategory(catStr) {
+  if (!catStr) return '1.1. Quản lý vận hành lưới điện trung, hạ thế';
+  var s = String(catStr).trim();
+  for (var i = 0; i < LEGACY_CATEGORY_MAP.length; i++) {
+    if (LEGACY_CATEGORY_MAP[i].match.test(s)) {
+      return LEGACY_CATEGORY_MAP[i].replacement;
+    }
+  }
+  return s;
+}
+
+// ==============================================================================
 // GET REQUEST: Trả về dữ liệu công việc và danh sách mật khẩu tài khoản
 // ==============================================================================
 function doGet(e) {
+  var lock = LockService.getScriptLock();
+  var hasLock = lock.tryLock(5000);
   try {
     var ss = getSpreadsheet();
 
@@ -90,7 +121,6 @@ function doGet(e) {
     var customPasswords = ss ? readPasswordsFromSheet(ss) : {};
 
     // 3. ĐỌC VÀ ĐỒNG BỘ TRỰC TIẾP TỪ TAB "PHÂN CÔNG TRỰC TUYẾN" CỦA GOOGLE SHEET
-    // Giúp phản ánh chính xác số công việc thực tế trên Sheet (ví dụ khi người dùng xóa bớt trên Sheet)
     if (ss) {
       data = syncTasksFromSheet(ss, data);
     }
@@ -105,6 +135,10 @@ function doGet(e) {
     return createOutput(response, e);
   } catch (error) {
     return createOutput({ status: 'error', message: error.toString() }, e);
+  } finally {
+    if (hasLock) {
+      try { lock.releaseLock(); } catch(lErr) {}
+    }
   }
 }
 
@@ -112,6 +146,12 @@ function doGet(e) {
 // POST REQUEST: Nhận dữ liệu công việc hoặc cập nhật đổi mật khẩu
 // ==============================================================================
 function doPost(e) {
+  var lock = LockService.getScriptLock();
+  var hasLock = lock.tryLock(15000); // Chờ tối đa 15s để xếp hàng ghi tuần tự
+  if (!hasLock) {
+    return createOutput({ status: 'error', message: 'Hệ thống đang bận ghi dữ liệu từ người dùng khác, vui lòng thử lại sau vài giây!' }, e);
+  }
+
   try {
     var payloadStr = '';
     if (e && e.postData && e.postData.contents) {
@@ -125,6 +165,7 @@ function doPost(e) {
 
     var parsed = JSON.parse(payloadStr);
     var ss = getSpreadsheet();
+    var props = PropertiesService.getScriptProperties();
 
     // 1. Trường hợp đổi mật khẩu riêng lẻ
     if (parsed.action === 'change_password') {
@@ -138,13 +179,153 @@ function doPost(e) {
       }, e);
     }
 
-    // 2. Trường hợp đồng bộ toàn bộ dữ liệu bảng công việc
+    // 2. THÊM MỘT CÔNG VIỆC MỚI (Single Add Task - CỰC KỲ AN TOÀN, KHÔNG THỂ LÀM MẤT VIỆC CỦA NGƯỜI KHÁC!)
+    if (parsed.action === 'add_task') {
+      var newTask = parsed.task;
+      if (!newTask || !newTask.title) {
+        return createOutput({ status: 'error', message: 'Thiếu thông tin công việc' }, e);
+      }
+      var savedJson = props.getProperty(STORAGE_PROP_KEY);
+      var currentData = savedJson ? JSON.parse(savedJson) : { tasks: [] };
+      if (!currentData.tasks || !Array.isArray(currentData.tasks)) currentData.tasks = [];
+
+      // Kiểm tra trùng lặp theo ID hoặc tên (phòng double click)
+      var exists = currentData.tasks.some(function(t) { return t.id === newTask.id; });
+      if (!exists) {
+        newTask.category = normalizeCategory(newTask.category);
+        currentData.tasks.push(newTask);
+      }
+      // Đánh lại số STT tuần tự 1..N
+      currentData.tasks.forEach(function(t, idx) { t.stt = idx + 1; });
+      currentData.lastModified = new Date().toISOString();
+      props.setProperty(STORAGE_PROP_KEY, JSON.stringify(currentData));
+
+      if (ss) {
+        try { syncToSpreadsheet(currentData); } catch (sheetErr) { console.warn('Lỗi ghi sheet:', sheetErr); }
+      }
+      return createOutput({
+        status: 'success',
+        message: 'Đã thêm công việc vào Google Sheet thành công!',
+        data: currentData,
+        lastModified: currentData.lastModified
+      }, e);
+    }
+
+    // 3. CẬP NHẬT MỘT CÔNG VIỆC (Single Update Task)
+    if (parsed.action === 'update_task') {
+      var updatedTask = parsed.task;
+      if (!updatedTask || !updatedTask.id) {
+        return createOutput({ status: 'error', message: 'Thiếu mã công việc cần cập nhật' }, e);
+      }
+      var savedJson = props.getProperty(STORAGE_PROP_KEY);
+      var currentData = savedJson ? JSON.parse(savedJson) : { tasks: [] };
+      if (!currentData.tasks || !Array.isArray(currentData.tasks)) currentData.tasks = [];
+
+      var found = false;
+      for (var i = 0; i < currentData.tasks.length; i++) {
+        if (currentData.tasks[i].id === updatedTask.id) {
+          if (updatedTask.category) updatedTask.category = normalizeCategory(updatedTask.category);
+          currentData.tasks[i] = Object.assign(currentData.tasks[i], updatedTask);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        updatedTask.category = normalizeCategory(updatedTask.category);
+        currentData.tasks.push(updatedTask);
+      }
+      currentData.tasks.forEach(function(t, idx) { t.stt = idx + 1; });
+      currentData.lastModified = new Date().toISOString();
+      props.setProperty(STORAGE_PROP_KEY, JSON.stringify(currentData));
+
+      if (ss) {
+        try { syncToSpreadsheet(currentData); } catch (sheetErr) { console.warn('Lỗi ghi sheet:', sheetErr); }
+      }
+      return createOutput({
+        status: 'success',
+        message: 'Đã cập nhật công việc thành công!',
+        data: currentData,
+        lastModified: currentData.lastModified
+      }, e);
+    }
+
+    // 4. XÓA MỘT CÔNG VIỆC CỤ THỂ (Explicit Delete Task)
+    if (parsed.action === 'delete_task') {
+      var delId = parsed.taskId;
+      if (!delId) {
+        return createOutput({ status: 'error', message: 'Thiếu mã công việc cần xóa' }, e);
+      }
+      var savedJson = props.getProperty(STORAGE_PROP_KEY);
+      var currentData = savedJson ? JSON.parse(savedJson) : { tasks: [] };
+      if (!currentData.tasks || !Array.isArray(currentData.tasks)) currentData.tasks = [];
+
+      currentData.tasks = currentData.tasks.filter(function(t) { return t.id !== delId; });
+      currentData.tasks.forEach(function(t, idx) { t.stt = idx + 1; });
+      currentData.lastModified = new Date().toISOString();
+      props.setProperty(STORAGE_PROP_KEY, JSON.stringify(currentData));
+
+      if (ss) {
+        try { syncToSpreadsheet(currentData); } catch (sheetErr) { console.warn('Lỗi ghi sheet:', sheetErr); }
+      }
+      return createOutput({
+        status: 'success',
+        message: 'Đã xóa công việc khỏi Google Sheet thành công!',
+        data: currentData,
+        lastModified: currentData.lastModified
+      }, e);
+    }
+
+    // 5. TRƯỜNG HỢP ĐỒNG BỘ TOÀN BỘ VỚI SMART MERGE (BẢO VỆ TUYỆT ĐỐI CHỐNG MẤT DỮ LIỆU)
     if (!parsed || !parsed.tasks || !Array.isArray(parsed.tasks)) {
       return createOutput({ status: 'error', message: 'Dữ liệu công việc không hợp lệ' }, e);
     }
 
+    var savedJson = props.getProperty(STORAGE_PROP_KEY);
+    var existingData = savedJson ? JSON.parse(savedJson) : null;
+    var existingTasks = (existingData && Array.isArray(existingData.tasks)) ? existingData.tasks : [];
+
+    // SMART MERGE: Nếu mảng gửi lên có ít task hơn mảng trên server (do máy client có cache cũ),
+    // GIỮ LẠI các task hiện hữu trên server, chỉ cập nhật hoặc bổ sung các task từ client!
+    var mergedTasks = [];
+    var incomingMap = {};
+    parsed.tasks.forEach(function(t) {
+      if (t.id) incomingMap[t.id] = t;
+      if (t.title) incomingMap[t.title.trim().toLowerCase()] = t;
+    });
+
+    // 5.1. Quét các việc đang có trên server: nếu client có gửi thì cập nhật, nếu client không có thì VẪN GIỮ LẠI
+    existingTasks.forEach(function(oldTask) {
+      var keyId = oldTask.id;
+      var keyTitle = oldTask.title ? oldTask.title.trim().toLowerCase() : '';
+      var incoming = (keyId && incomingMap[keyId]) || (keyTitle && incomingMap[keyTitle]);
+      if (incoming) {
+        var merged = Object.assign({}, oldTask, incoming);
+        merged.category = normalizeCategory(merged.category);
+        mergedTasks.push(merged);
+        if (keyId) delete incomingMap[keyId];
+        if (keyTitle) delete incomingMap[keyTitle];
+      } else {
+        oldTask.category = normalizeCategory(oldTask.category);
+        mergedTasks.push(oldTask);
+      }
+    });
+
+    // 5.2. Thêm các việc mới hoàn toàn từ client chưa có trên server
+    for (var k in incomingMap) {
+      var incomingTask = incomingMap[k];
+      if (incomingTask && !mergedTasks.some(function(m) { return m.id === incomingTask.id || (m.title && incomingTask.title && m.title.trim().toLowerCase() === incomingTask.title.trim().toLowerCase()); })) {
+        incomingTask.category = normalizeCategory(incomingTask.category);
+        mergedTasks.push(incomingTask);
+      }
+    }
+
+    // 5.3. Đánh lại số STT tuần tự 1..N từ trên xuống dưới
+    mergedTasks.forEach(function(t, idx) {
+      t.stt = idx + 1;
+    });
+
+    parsed.tasks = mergedTasks;
     parsed.lastModified = new Date().toISOString();
-    var props = PropertiesService.getScriptProperties();
     props.setProperty(STORAGE_PROP_KEY, JSON.stringify(parsed));
 
     if (ss) {
@@ -162,16 +343,20 @@ function doPost(e) {
 
     return createOutput({
       status: 'success',
-      message: 'Đã đồng bộ công việc và tài khoản thành công!',
+      message: 'Đã đồng bộ công việc an toàn (Smart Merge) thành công!',
       lastModified: parsed.lastModified
     }, e);
   } catch (error) {
     return createOutput({ status: 'error', message: error.toString() }, e);
+  } finally {
+    if (hasLock) {
+      try { lock.releaseLock(); } catch(lErr) {}
+    }
   }
 }
 
 // ==============================================================================
-// ĐỒNG BỘ TAB "PHÂN CÔNG TRỰC TUYẾN"
+// ĐỒNG BỘ TAB "PHÂN CÔNG TRỰC TUYẾN" (KHÔNG DÙNG clearContents TRÁNH GIẬT/MẤT ROW)
 // ==============================================================================
 function syncToSpreadsheet(data) {
   if (!data || !data.tasks) return;
@@ -181,26 +366,30 @@ function syncToSpreadsheet(data) {
   var sheet = ss.getSheetByName(TASKS_SHEET_NAME);
   if (!sheet) sheet = ss.insertSheet(TASKS_SHEET_NAME);
 
-  var headers = ['STT', 'Tên công việc', 'Nội dung chi tiết', 'Nhóm công tác', 'Phụ trách', 'Theo dõi', 'Thời hạn', 'Trạng thái', 'Ưu tiên', 'Cập nhật'];
+  var headers = ['STT', 'Tên công việc', 'Nội dung chi tiết', 'Nhóm công tác', 'Phụ trách', 'Theo dõi', 'Thời hạn', 'Trạng thái', 'Ưu tiên', 'Cập nhật', 'Mã ID'];
   var rows = [];
   var lastMod = data.lastModified ? Utilities.formatDate(new Date(data.lastModified), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss") : Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
 
   data.tasks.forEach(function(t, idx) {
+    var cat = normalizeCategory(t.category);
     rows.push([
-      t.stt || (idx + 1),
+      idx + 1,
       t.title || '',
       t.detail || '',
-      t.category || '',
+      cat,
       t.in_staging ? 'Chưa phân công' : (t.assignee_text || ''),
       t.follower_text || '',
       t.deadline || '',
       t.status === 'completed' ? '✓ Đã hoàn tất' : '● Đang thực hiện',
       t.priority === 'urgent' ? '🔥 Khẩn cấp' : 'Bình thường',
-      lastMod
+      lastMod,
+      t.id || ('task_' + (idx + 1))
     ]);
   });
 
-  sheet.clearContents();
+  var lastRow = sheet.getLastRow();
+
+  // Thiết lập tiêu đề dòng 1 (An toàn tuyệt đối, không gọi clearContents làm trống sheet)
   var hr = sheet.getRange(1, 1, 1, headers.length);
   hr.setValues([headers]);
   hr.setBackground('#003399');
@@ -210,21 +399,34 @@ function syncToSpreadsheet(data) {
   sheet.setFrozenRows(1);
 
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows).setVerticalAlignment('middle').setWrap(true);
+    var dataRange = sheet.getRange(2, 1, rows.length, headers.length);
+    dataRange.setValues(rows);
+    dataRange.setVerticalAlignment('middle').setWrap(true);
+    // Căn giữa STT
     sheet.getRange(2, 1, rows.length, 1).setHorizontalAlignment('center');
-    sheet.getRange(2, 7, rows.length, 4).setHorizontalAlignment('center');
+    // Căn giữa Thời hạn, Trạng thái, Ưu tiên, Cập nhật, Mã ID
+    sheet.getRange(2, 7, rows.length, 5).setHorizontalAlignment('center');
+    // Mã ID hiển thị chữ xám nhỏ kín đáo
+    sheet.getRange(2, 11, rows.length, 1).setFontColor('#94a3b8').setFontSize(9);
   }
 
-  sheet.setColumnWidth(1, 60);
-  sheet.setColumnWidth(2, 300);
-  sheet.setColumnWidth(3, 380);
-  sheet.setColumnWidth(4, 200);
-  sheet.setColumnWidth(5, 200);
-  sheet.setColumnWidth(6, 150);
-  sheet.setColumnWidth(7, 120);
-  sheet.setColumnWidth(8, 130);
-  sheet.setColumnWidth(9, 110);
-  sheet.setColumnWidth(10, 160);
+  // Nếu số dòng mới ít hơn số dòng cũ trước đó, chỉ xóa sạch các dòng thừa bên dưới
+  if (lastRow > rows.length + 1) {
+    var excessRows = lastRow - (rows.length + 1);
+    sheet.getRange(rows.length + 2, 1, excessRows, headers.length).clearContent().clearFormat();
+  }
+
+  sheet.setColumnWidth(1, 60);  // STT
+  sheet.setColumnWidth(2, 300); // Tên công việc
+  sheet.setColumnWidth(3, 380); // Chi tiết
+  sheet.setColumnWidth(4, 250); // Nhóm công tác (rộng hơn để hiển thị 26 nhóm RACI)
+  sheet.setColumnWidth(5, 200); // Phụ trách
+  sheet.setColumnWidth(6, 180); // Theo dõi
+  sheet.setColumnWidth(7, 120); // Thời hạn
+  sheet.setColumnWidth(8, 130); // Trạng thái
+  sheet.setColumnWidth(9, 110); // Ưu tiên
+  sheet.setColumnWidth(10, 160); // Cập nhật
+  sheet.setColumnWidth(11, 150); // Mã ID (Cột 11)
 }
 
 // ==============================================================================
@@ -420,17 +622,14 @@ function syncTasksFromSheet(ss, data) {
   var lastRow = sheet.getLastRow();
   var existingTasks = (data && data.tasks && Array.isArray(data.tasks)) ? data.tasks : [];
 
-  // Nếu sheet chỉ có dòng tiêu đề (lastRow <= 1) hoặc trống: người dùng đã xóa hết việc trên Sheet
+  // BẢO VỆ: Nếu sheet chỉ có dòng tiêu đề hoặc tạm trống, KHÔNG xóa data.tasks nếu data đang có công việc
   if (lastRow < 2) {
-    if (data) {
-      data.tasks = [];
-      data.lastModified = new Date().toISOString();
-      try { PropertiesService.getScriptProperties().setProperty(STORAGE_PROP_KEY, JSON.stringify(data)); } catch (e) {}
-    }
     return data;
   }
 
-  var values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  // Đọc đến cột 11 (bao gồm Cột K: Mã ID)
+  var numCols = Math.max(sheet.getLastColumn(), 11);
+  var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
   var existingTaskMap = {};
   existingTasks.forEach(function(t) {
     if (t.id) existingTaskMap[t.id] = t;
@@ -441,10 +640,10 @@ function syncTasksFromSheet(ss, data) {
 
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
-    var stt = String(row[0] || (i + 1)).trim();
+    var stt = i + 1; // Luôn đảm bảo STT tuần tự 1..N từ trên xuống dưới
     var title = String(row[1] || '').trim();
     var detail = String(row[2] || '').trim();
-    var category = String(row[3] || '').trim();
+    var category = normalizeCategory(row[3]); // Tự động chuẩn hóa nhóm La Mã sang 26 nhóm RACI
     var assigneeText = String(row[4] || '').trim();
     var followerText = String(row[5] || '').trim();
     var deadlineVal = row[6];
@@ -458,13 +657,14 @@ function syncTasksFromSheet(ss, data) {
     }
     var statusText = String(row[7] || '').trim();
     var priorityText = String(row[8] || '').trim();
+    var rowId = (numCols >= 11 && row[10]) ? String(row[10]).trim() : '';
 
     if (!title) continue; // Bỏ qua dòng trống không có tên
 
     var matchKey = title.toLowerCase();
-    var existing = existingTaskMap[matchKey];
+    var existing = (rowId && existingTaskMap[rowId]) || existingTaskMap[matchKey];
 
-    var taskId = existing ? existing.id : ('task_sheet_' + (i + 1) + '_' + Date.now());
+    var taskId = rowId || (existing ? existing.id : ('task_sheet_' + (i + 1) + '_' + Date.now()));
     var isCompleted = statusText.indexOf('Đã hoàn tất') !== -1 || statusText.indexOf('completed') !== -1 || statusText.indexOf('Xong') !== -1;
     var isUrgent = priorityText.indexOf('Khẩn') !== -1 || priorityText.indexOf('urgent') !== -1;
     var inStaging = (assigneeText === 'Chưa phân công' || !assigneeText);
@@ -489,6 +689,9 @@ function syncTasksFromSheet(ss, data) {
           if (followerIds.indexOf(acc.empId) === -1) followerIds.push(acc.empId);
         }
       });
+      if (followerIds.length === 0 && existing && existing.follower_ids) {
+        followerIds = existing.follower_ids;
+      }
     }
 
     var taskObj = {
@@ -497,8 +700,8 @@ function syncTasksFromSheet(ss, data) {
       title: title,
       detail: detail,
       category: category,
-      category_id: existing ? existing.category_id : 'cat_cntt',
-      section: existing ? existing.section : 'B. Công tác Tổ CNTT',
+      category_id: existing ? existing.category_id : '',
+      section: existing ? existing.section : '',
       assignee_ids: assigneeIds,
       assignee_text: inStaging ? '' : assigneeText,
       follower_ids: followerIds,

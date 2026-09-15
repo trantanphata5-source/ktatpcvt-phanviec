@@ -231,7 +231,7 @@
       el.createTaskBtn.style.display = '';
       el.saveBtn.style.display = '';
       el.exportBtn.style.display = '';
-      el.resetBtn.style.display = '';
+      if (el.resetBtn) el.resetBtn.style.display = '';
       el.toggleSidebarBtn.style.display = '';
       el.stagingSidebar.classList.remove('collapsed');
       if (el.tabPersonal) el.tabPersonal.style.display = 'none';
@@ -611,7 +611,7 @@
     if (isLeader) {
       el.toggleSidebarBtn.addEventListener('click', () => el.stagingSidebar.classList.toggle('collapsed'));
       el.saveBtn.addEventListener('click', () => saveData(true));
-      el.resetBtn.addEventListener('click', resetToDefault);
+      if (el.resetBtn) el.resetBtn.addEventListener('click', resetToDefault);
       el.exportBtn.addEventListener('click', exportToCSV);
       el.createTaskBtn.addEventListener('click', () => openTaskModal());
       el.sidebarCreateBtn.addEventListener('click', () => openTaskModal(null, true));
@@ -623,7 +623,7 @@
     }
 
     // Sync modal
-    el.syncConfigBtn.addEventListener('click', openSyncModal);
+    if (el.syncConfigBtn) el.syncConfigBtn.addEventListener('click', openSyncModal);
     el.syncModalClose.addEventListener('click', closeSyncModal);
     el.syncModal.addEventListener('click', e => { if (e.target === el.syncModal) closeSyncModal(); });
     el.btnSyncNow.addEventListener('click', () => pullFromCloud(true));

@@ -58,7 +58,8 @@
     _savedFormState: null,
     // Category view state
     categoryGroupFilter: 'ALL',
-    expandedCategories: {}
+    expandedCategories: {},
+    expandedStaffCards: {}
   };
 
   // Check if user is actively editing a form field (typing in input/textarea/select)
@@ -950,6 +951,8 @@
     el.mainContent.appendChild(container);
   }
 
+  const MAX_STAFF_TASKS_COLLAPSED = 3;
+
   function createEmployeeColumn(emp) {
     const col = document.createElement('div');
     col.className = 'employee-column';
@@ -957,6 +960,27 @@
     if (state.searchQuery) empTasks = empTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
     const initials = getInitials(emp.name);
     const photoUrl = emp.photo;
+
+    // ── Tính số công việc lãnh đạo theo dõi (qua follower_ids của nhóm công tác) ──
+    const isLeaderMember = emp.team === 'BLĐ';
+    let followerTasks = [];
+    if (isLeaderMember) {
+      // Lấy danh sách category mà lãnh đạo này là follower
+      const followedCatIds = state.categories
+        .filter(cat => cat.follower_ids && cat.follower_ids.includes(emp.id))
+        .map(cat => cat.id);
+      // Lấy tất cả task thuộc các category đó (không trùng với task đã giao trực tiếp cho lãnh đạo)
+      followerTasks = state.tasks.filter(t => 
+        !t.in_staging && 
+        followedCatIds.includes(t.category_id) &&
+        !(t.assignee_ids && t.assignee_ids.includes(emp.id))
+      );
+    }
+
+    const followerBadgeHtml = isLeaderMember
+      ? `<span class="employee-follower-count" data-emp-id="${emp.id}" title="Công việc theo dõi – Bấm để xem chi tiết">👁️ ${followerTasks.length} theo dõi</span>`
+      : '';
+
     col.innerHTML = `
       <div class="employee-header">
         <div class="employee-avatar-wrap">
@@ -969,7 +993,10 @@
           </div>
           <div class="employee-role" title="${emp.position}">${emp.position}</div>
         </div>
-        <div class="employee-task-count">${empTasks.length} việc</div>
+        <div class="employee-counts-wrap">
+          <div class="employee-task-count">${empTasks.length} việc</div>
+          ${followerBadgeHtml}
+        </div>
       </div>
       <div class="employee-tasks-dropzone" id="dz_${emp.id}"></div>`;
     const dz = col.querySelector(`#dz_${emp.id}`);
@@ -977,9 +1004,104 @@
     if (empTasks.length === 0) {
       dz.innerHTML = `<div class="empty-task-placeholder">Chưa có việc${isLeader ? ' • Thả việc vào đây' : ''}</div>`;
     } else {
-      empTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: false, currentEmpId: emp.id })));
+      // ── Giới hạn hiển thị 3 task, nút mở rộng nếu nhiều hơn ──
+      const isExpanded = state.expandedStaffCards && state.expandedStaffCards[emp.id];
+      const visibleTasks = isExpanded ? empTasks : empTasks.slice(0, MAX_STAFF_TASKS_COLLAPSED);
+      const hiddenCount = empTasks.length - MAX_STAFF_TASKS_COLLAPSED;
+
+      visibleTasks.forEach(task => dz.appendChild(createTaskCard(task, { showAssignees: false, currentEmpId: emp.id })));
+
+      if (empTasks.length > MAX_STAFF_TASKS_COLLAPSED) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'staff-expand-btn';
+        toggleBtn.dataset.empId = emp.id;
+        if (isExpanded) {
+          toggleBtn.innerHTML = `<span class="staff-expand-icon">▲</span> Thu gọn`;
+          toggleBtn.classList.add('expanded');
+        } else {
+          toggleBtn.innerHTML = `<span class="staff-expand-icon">▼</span> Xem thêm <span class="staff-expand-count">(${hiddenCount})</span>`;
+        }
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!state.expandedStaffCards) state.expandedStaffCards = {};
+          state.expandedStaffCards[emp.id] = !state.expandedStaffCards[emp.id];
+          renderStaffView();
+        });
+        dz.appendChild(toggleBtn);
+      }
     }
+
+    // ── Xử lý sự kiện bấm vào badge "theo dõi" → hiện popup ──
+    if (isLeaderMember) {
+      const followerBadge = col.querySelector('.employee-follower-count');
+      if (followerBadge) {
+        followerBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showFollowerTasksPopup(emp, followerTasks);
+        });
+      }
+    }
+
     return col;
+  }
+
+  // ── Popup hiển thị danh sách công việc lãnh đạo theo dõi ──
+  function showFollowerTasksPopup(leader, tasks) {
+    // Xóa popup cũ nếu có
+    const existingPopup = document.querySelector('.follower-popup-backdrop');
+    if (existingPopup) existingPopup.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'follower-popup-backdrop active';
+
+    const taskRows = tasks.length > 0
+      ? tasks.map((t, i) => {
+          const cat = state.categories.find(c => c.id === t.category_id);
+          const catTitle = cat ? cat.title : 'Chưa phân loại';
+          const assignees = (t.assignee_ids || []).map(id => {
+            const emp = state.employees.find(e => e.id === id);
+            return emp ? emp.name : id;
+          }).join(', ') || '<em>Chưa phân công</em>';
+          const statusLabel = t.status === 'done' ? '✅ Xong' : t.status === 'in_progress' ? '🔄 Đang làm' : '⏳ Chờ';
+          return `<tr>
+            <td>${i + 1}</td>
+            <td class="follower-popup-task-title">${t.title}</td>
+            <td>${catTitle}</td>
+            <td>${assignees}</td>
+            <td>${statusLabel}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px;">Không có công việc theo dõi</td></tr>`;
+
+    backdrop.innerHTML = `
+      <div class="follower-popup-dialog">
+        <div class="follower-popup-header">
+          <h3>👁️ Công việc theo dõi – ${leader.name}</h3>
+          <span class="follower-popup-subtitle">${leader.position} • ${tasks.length} công việc</span>
+          <button class="modal-close-btn follower-popup-close">&times;</button>
+        </div>
+        <div class="follower-popup-body">
+          <table class="follower-popup-table">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Công việc</th>
+                <th>Nhóm công tác</th>
+                <th>Người phụ trách</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>${taskRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    // Đóng popup
+    backdrop.querySelector('.follower-popup-close').addEventListener('click', () => backdrop.remove());
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
   }
 
   // =========================================================================

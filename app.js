@@ -416,7 +416,28 @@
       const formState = (state.activeView === 'personal') ? savePersonalFormState() : null;
 
       state.tasks = rd.tasks;
-      if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) state.categories = rd.categories;
+      // Categories: ưu tiên INITIAL_APP_DATA (25 nhóm RACI mới) nếu khác remote
+      if (rd.categories && Array.isArray(rd.categories) && rd.categories.length > 0) {
+        state.categories = rd.categories;
+      }
+      // Đảm bảo categories từ INITIAL_APP_DATA luôn được áp dụng (khi code mới deploy với 25 nhóm)
+      if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.categories) {
+        const initCats = window.INITIAL_APP_DATA.categories;
+        if (initCats.length !== state.categories.length || 
+            initCats.some(ic => !state.categories.find(sc => sc.id === ic.id))) {
+          state.categories = JSON.parse(JSON.stringify(initCats));
+        } else {
+          const catMap = {};
+          state.categories.forEach(c => { catMap[c.id] = c; });
+          initCats.forEach(ic => {
+            if (catMap[ic.id]) {
+              if (ic.follower_ids) catMap[ic.id].follower_ids = ic.follower_ids;
+              if (ic.follower_text) catMap[ic.id].follower_text = ic.follower_text;
+              if (ic.section_code) catMap[ic.id].section_code = ic.section_code;
+            }
+          });
+        }
+      }
       if (rd.employees && Array.isArray(rd.employees) && rd.employees.length > 0) {
         state.employees = rd.employees;
         if (window.INITIAL_APP_DATA && window.INITIAL_APP_DATA.employees) {

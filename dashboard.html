@@ -52,11 +52,9 @@
           <span class="search-clear" id="searchClear" title="Xóa tìm kiếm">✕</span>
         </div>
 
-        <!-- Sync Status -->
-        <button class="btn btn-sync" id="syncConfigBtn" title="Trạng thái đồng bộ">
-          <span class="sync-status-dot dot-synced" id="syncStatusDot"></span>
-          <span id="syncStatusLabel">Đã đồng bộ</span>
-        </button>
+        <!-- Sync Status (hidden) -->
+        <span id="syncStatusDot" style="display:none;"></span>
+        <span id="syncStatusLabel" style="display:none;"></span>
 
         <!-- Leader-only buttons -->
         <button class="btn btn-primary" id="createTaskBtn" title="Tạo công việc mới" style="display:none;">
@@ -68,9 +66,7 @@
         <button class="btn btn-outline" id="exportBtn" title="Xuất Excel/CSV" style="display:none;">
           <span>📥</span><span>Xuất dữ liệu</span>
         </button>
-        <button class="btn btn-icon" id="resetBtn" title="Khôi phục dữ liệu gốc" style="display:none;">
-          <span>🔄</span>
-        </button>
+
         <button class="btn btn-outline" id="toggleSidebarBtn" title="Đóng / Mở Danh sách chờ" style="display:none;">
           <span>📑</span><span>DS Chờ</span>
         </button>

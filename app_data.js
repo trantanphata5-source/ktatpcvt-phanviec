@@ -155,6 +155,15 @@ window.INITIAL_APP_DATA = {
       "follower_text": "PP Phan Thế Vinh",
       "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
     },
+    {
+      "id": "cat_b06", "code": "2.6",
+      "title": "2.6. Công tác di dời đồng bộ giao thông",
+      "section": "B. Đầu tư Xây dựng – Sửa chữa – Đấu thầu",
+      "section_code": "B",
+      "follower_ids": ["emp_012170"],
+      "follower_text": "PP Phan Thế Vinh",
+      "color": "#7c3aed", "bg_color": "#f5f3ff", "border_color": "#ddd6fe"
+    },
     // ═══ C. TÀI SẢN – BÀN GIAO CÔNG TRÌNH – VẬT TƯ (3.1 – 3.3) ═══
     {
       "id": "cat_c01", "code": "3.1",

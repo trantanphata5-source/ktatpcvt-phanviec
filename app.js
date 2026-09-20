@@ -59,7 +59,8 @@
     // Category view state
     categoryGroupFilter: 'ALL',
     expandedCategories: {},
-    expandedStaffCards: {}
+    expandedStaffCards: {},
+    expandedDashboardWeeks: { 0: true } // tuần hiện tại mặc định mở
   };
 
   // Check if user is actively editing a form field (typing in input/textarea/select)
@@ -953,11 +954,21 @@
 
   const MAX_STAFF_TASKS_COLLAPSED = 3;
 
+  // ── Hàm sắp xếp: việc đang làm lên trên, việc xong xuống dưới ──
+  function sortTasksByStatus(tasks) {
+    return tasks.slice().sort((a, b) => {
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (a.status !== 'completed' && b.status === 'completed') return -1;
+      return 0;
+    });
+  }
+
   function createEmployeeColumn(emp) {
     const col = document.createElement('div');
     col.className = 'employee-column';
     let empTasks = state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id));
     if (state.searchQuery) empTasks = empTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
+    empTasks = sortTasksByStatus(empTasks);
     const initials = getInitials(emp.name);
     const photoUrl = emp.photo;
 
@@ -1045,17 +1056,28 @@
     return col;
   }
 
-  // ── Popup hiển thị danh sách công việc lãnh đạo theo dõi ──
+  // ── Popup hiển thị danh sách công việc lãnh đạo theo dõi (có bộ lọc) ──
   function showFollowerTasksPopup(leader, tasks) {
-    // Xóa popup cũ nếu có
     const existingPopup = document.querySelector('.follower-popup-backdrop');
     if (existingPopup) existingPopup.remove();
+
+    // Tính danh sách unique cho filter
+    const uniqueCats = [...new Set(tasks.map(t => {
+      const cat = state.categories.find(c => c.id === t.category_id);
+      return cat ? cat.title : 'Chưa phân loại';
+    }))].sort();
+    const uniqueAssignees = [...new Set(tasks.flatMap(t => (t.assignee_ids || []).map(id => {
+      const emp = state.employees.find(e => e.id === id);
+      return emp ? emp.name : id;
+    })))].sort();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'follower-popup-backdrop active';
 
-    const taskRows = tasks.length > 0
-      ? tasks.map((t, i) => {
+    const sortedTasks = sortTasksByStatus(tasks);
+
+    const taskRows = sortedTasks.length > 0
+      ? sortedTasks.map((t, i) => {
           const cat = state.categories.find(c => c.id === t.category_id);
           const catTitle = cat ? cat.title : 'Chưa phân loại';
           const assignees = (t.assignee_ids || []).map(id => {
@@ -1063,12 +1085,13 @@
             return emp ? emp.name : id;
           }).join(', ') || '<em>Chưa phân công</em>';
           const statusLabel = t.status === 'completed' ? '✅ Xong' : t.status === 'in_progress' ? '🔄 Đang làm' : '⏳ Chờ';
-          return `<tr>
+          const statusKey = t.status === 'completed' ? 'completed' : t.status === 'in_progress' ? 'in_progress' : 'pending';
+          return `<tr data-cat="${escapeHtml(catTitle)}" data-assignee="${escapeHtml(assignees)}" data-status="${statusKey}">
             <td>${i + 1}</td>
-            <td class="follower-popup-task-title">${t.title}</td>
-            <td>${catTitle}</td>
+            <td class="follower-popup-task-title">${escapeHtml(t.title)}</td>
+            <td>${escapeHtml(catTitle)}</td>
             <td>${assignees}</td>
-            <td>${statusLabel}</td>
+            <td class="follower-popup-status-cell">${statusLabel}</td>
           </tr>`;
         }).join('')
       : `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px;">Không có công việc theo dõi</td></tr>`;
@@ -1086,12 +1109,32 @@
               <tr>
                 <th>STT</th>
                 <th>Công việc</th>
-                <th>Nhóm công việc</th>
-                <th>Người phụ trách</th>
-                <th>Trạng thái</th>
+                <th>
+                  <div class="fp-filter-th">Nhóm công việc</div>
+                  <select class="fp-filter-select" id="fpFilterCat">
+                    <option value="">Tất cả</option>
+                    ${uniqueCats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                  </select>
+                </th>
+                <th>
+                  <div class="fp-filter-th">Người phụ trách</div>
+                  <select class="fp-filter-select" id="fpFilterAssignee">
+                    <option value="">Tất cả</option>
+                    ${uniqueAssignees.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')}
+                  </select>
+                </th>
+                <th>
+                  <div class="fp-filter-th">Trạng thái</div>
+                  <select class="fp-filter-select" id="fpFilterStatus">
+                    <option value="">Tất cả</option>
+                    <option value="in_progress">🔄 Đang làm</option>
+                    <option value="completed">✅ Xong</option>
+                    <option value="pending">⏳ Chờ</option>
+                  </select>
+                </th>
               </tr>
             </thead>
-            <tbody>${taskRows}</tbody>
+            <tbody id="fpTbody">${taskRows}</tbody>
           </table>
         </div>
       </div>
@@ -1102,6 +1145,26 @@
     // Đóng popup
     backdrop.querySelector('.follower-popup-close').addEventListener('click', () => backdrop.remove());
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
+
+    // Lọc client-side
+    function applyFilters() {
+      const catVal = backdrop.querySelector('#fpFilterCat').value;
+      const assigneeVal = backdrop.querySelector('#fpFilterAssignee').value;
+      const statusVal = backdrop.querySelector('#fpFilterStatus').value;
+      let visibleIdx = 0;
+      backdrop.querySelectorAll('#fpTbody tr').forEach(tr => {
+        if (!tr.dataset.cat) return; // skip empty placeholder
+        let show = true;
+        if (catVal && tr.dataset.cat !== catVal) show = false;
+        if (assigneeVal && !tr.dataset.assignee.includes(assigneeVal)) show = false;
+        if (statusVal && tr.dataset.status !== statusVal) show = false;
+        tr.style.display = show ? '' : 'none';
+        if (show) { visibleIdx++; tr.querySelector('td').textContent = visibleIdx; }
+      });
+    }
+    backdrop.querySelector('#fpFilterCat').addEventListener('change', applyFilters);
+    backdrop.querySelector('#fpFilterAssignee').addEventListener('change', applyFilters);
+    backdrop.querySelector('#fpFilterStatus').addEventListener('change', applyFilters);
   }
 
   // =========================================================================
@@ -1173,6 +1236,7 @@
       sectionCats.forEach(cat => {
         let catTasks = state.tasks.filter(t => t.category_id === cat.id && !t.in_staging);
         if (state.searchQuery) catTasks = catTasks.filter(t => t.title.toLowerCase().includes(state.searchQuery) || (t.detail || '').toLowerCase().includes(state.searchQuery));
+        catTasks = sortTasksByStatus(catTasks);
 
         const isExpanded = state.expandedCategories[cat.id] || false;
         const visibleTasks = isExpanded ? catTasks : catTasks.slice(0, MAX_TASKS_COLLAPSED);
@@ -1259,7 +1323,7 @@
     const inProgress = state.tasks.filter(t => t.status === 'in_progress' && !t.in_staging && t.assignee_ids && t.assignee_ids.length > 0).length;
     const pending = state.tasks.filter(t => t.in_staging || !t.assignee_ids || t.assignee_ids.length === 0).length;
 
-    // KPI
+    // KPI tổng quát
     const kpi = document.createElement('div');
     kpi.className = 'dashboard-kpi-row';
     kpi.innerHTML = `
@@ -1269,40 +1333,117 @@
       <div class="kpi-card kpi-purple"><div class="kpi-info"><span class="kpi-label">Danh sách chờ</span><span class="kpi-value">${pending}</span><span class="kpi-subtext">Chưa gán</span></div><div class="kpi-icon-wrap">📥</div></div>`;
     container.appendChild(kpi);
 
-    // 2-col: workload + category breakdown
-    const grid2 = document.createElement('div');
-    grid2.className = 'dashboard-grid-2col';
-    const allEmps = state.employees;
-    const workloadList = allEmps.map(emp => ({
-      emp, count: state.tasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id)).length
-    })).sort((a, b) => b.count - a.count);
-    const maxC = Math.max(...workloadList.map(w => w.count), 1);
+    // ── Phân nhóm task theo tuần ──
+    function getTaskWeekOffset(task) {
+      let taskDate = null;
+      if (task.status === 'completed' && task.completed_at) {
+        taskDate = new Date(task.completed_at);
+      } else if (task.created_at) {
+        taskDate = new Date(task.created_at);
+      } else if (task.deadline) {
+        taskDate = parseTaskDate(task.deadline);
+      }
+      if (!taskDate || isNaN(taskDate.getTime())) return 0;
+      
+      const now = new Date();
+      const todayMonday = new Date(now);
+      const day = todayMonday.getDay();
+      todayMonday.setDate(todayMonday.getDate() - (day === 0 ? 6 : day - 1));
+      todayMonday.setHours(0, 0, 0, 0);
+      
+      const taskMonday = new Date(taskDate);
+      const taskDay = taskMonday.getDay();
+      taskMonday.setDate(taskMonday.getDate() - (taskDay === 0 ? 6 : taskDay - 1));
+      taskMonday.setHours(0, 0, 0, 0);
+      
+      return Math.round((taskMonday - todayMonday) / (7 * 86400000));
+    }
 
-    const leftPanel = document.createElement('div');
-    leftPanel.className = 'dashboard-panel';
-    leftPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">👥 Phân bổ công việc theo Nhân sự</h4><span style="font-size:11.5px;color:var(--text-muted);">${allEmps.length} CBCNV</span></div></div>
-      <div class="workload-chart-list">${workloadList.map(item => {
-        const photo = item.emp.photo;
-        const ini = getInitials(item.emp.name);
-        const pct = item.count > 0 ? Math.max(Math.round((item.count / maxC) * 100), 10) : 0;
-        return `<div class="workload-bar-item">
-          <div class="workload-avatar-wrap">${photo ? `<img class="workload-avatar-img" src="${photo}" alt="${item.emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span class="workload-avatar-fallback" style="display:none;">${ini}</span>` : `<span class="workload-avatar-fallback">${ini}</span>`}</div>
-          <div class="workload-staff-info"><span class="workload-staff-name" title="${item.emp.name}">${item.emp.name}</span><div class="workload-sub-row"><span class="workload-role-text">${item.emp.position}</span></div></div>
-          <div class="workload-track"><div class="workload-fill" style="width:${pct}%;">${item.count > 0 ? item.count : ''}</div></div>
-          <span class="workload-count">${item.count} việc</span>
-        </div>`;
-      }).join('')}</div>`;
-    grid2.appendChild(leftPanel);
+    // Collect unique week offsets
+    const weekOffsets = new Set();
+    state.tasks.forEach(t => weekOffsets.add(getTaskWeekOffset(t)));
+    if (!weekOffsets.has(0)) weekOffsets.add(0); // luôn có tuần hiện tại
+    const sortedWeeks = [...weekOffsets].sort((a, b) => b - a); // mới nhất trước
 
-    const rightPanel = document.createElement('div');
-    rightPanel.className = 'dashboard-panel';
-    rightPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">🏷️ Cơ cấu theo Nhóm công tác</h4></div></div>
-      <div class="category-stat-list">${state.categories.map(cat => {
-        const cnt = state.tasks.filter(t => t.category_id === cat.id).length;
-        return `<div class="category-stat-item" style="border-left-color:${cat.color};"><span class="category-stat-name">${cat.title}</span><span class="category-stat-count">${cnt} việc</span></div>`;
-      }).join('')}</div>`;
-    grid2.appendChild(rightPanel);
-    container.appendChild(grid2);
+    // ── Render từng tuần ──
+    sortedWeeks.forEach(weekOffset => {
+      const weekInfo = getWeekRange(weekOffset);
+      const weekTasks = state.tasks.filter(t => getTaskWeekOffset(t) === weekOffset);
+      const weekCompleted = weekTasks.filter(t => t.status === 'completed').length;
+      const weekInProgress = weekTasks.filter(t => t.status !== 'completed').length;
+      const isExpanded = !!state.expandedDashboardWeeks[weekOffset];
+
+      const weekSection = document.createElement('div');
+      weekSection.className = 'dashboard-week-section';
+
+      const tagClass = weekOffset === 0 ? 'dw-tag-current' : 'dw-tag-past';
+      weekSection.innerHTML = `
+        <div class="dashboard-week-header" data-week-offset="${weekOffset}">
+          <div class="dw-header-left">
+            <span class="dw-expand-icon">${isExpanded ? '▾' : '▸'}</span>
+            <span class="dw-week-icon">📅</span>
+            <h4 class="dw-week-title">${weekInfo.label}</h4>
+            <span class="dw-week-tag ${tagClass}">${weekInfo.relativeTag}</span>
+          </div>
+          <div class="dw-header-right">
+            <span class="dw-stat-pill dw-pill-total">${weekTasks.length} việc</span>
+            <span class="dw-stat-pill dw-pill-done">✅ ${weekCompleted}</span>
+            <span class="dw-stat-pill dw-pill-doing">⏳ ${weekInProgress}</span>
+          </div>
+        </div>
+        <div class="dashboard-week-body ${isExpanded ? '' : 'collapsed'}" id="dwBody_${weekOffset}"></div>
+      `;
+
+      container.appendChild(weekSection);
+
+      if (isExpanded) {
+        const body = weekSection.querySelector(`#dwBody_${weekOffset}`);
+        const grid2 = document.createElement('div');
+        grid2.className = 'dashboard-grid-2col';
+
+        // Workload chart cho tuần này
+        const allEmps = state.employees;
+        const workloadList = allEmps.map(emp => ({
+          emp, count: weekTasks.filter(t => !t.in_staging && t.assignee_ids && t.assignee_ids.includes(emp.id)).length
+        })).filter(w => w.count > 0).sort((a, b) => b.count - a.count);
+        const maxC = Math.max(...workloadList.map(w => w.count), 1);
+
+        const leftPanel = document.createElement('div');
+        leftPanel.className = 'dashboard-panel';
+        leftPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">👥 Phân bổ công việc theo Nhân sự</h4><span style="font-size:11.5px;color:var(--text-muted);">${workloadList.length} người có việc</span></div></div>
+          <div class="workload-chart-list">${workloadList.length === 0 ? '<div style="padding:16px;text-align:center;color:var(--text-light);font-size:13px;">Chưa có công việc trong tuần này</div>' : workloadList.map(item => {
+            const photo = item.emp.photo;
+            const ini = getInitials(item.emp.name);
+            const pct = item.count > 0 ? Math.max(Math.round((item.count / maxC) * 100), 10) : 0;
+            return `<div class="workload-bar-item">
+              <div class="workload-avatar-wrap">${photo ? `<img class="workload-avatar-img" src="${photo}" alt="${item.emp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span class="workload-avatar-fallback" style="display:none;">${ini}</span>` : `<span class="workload-avatar-fallback">${ini}</span>`}</div>
+              <div class="workload-staff-info"><span class="workload-staff-name" title="${item.emp.name}">${item.emp.name}</span><div class="workload-sub-row"><span class="workload-role-text">${item.emp.position}</span></div></div>
+              <div class="workload-track"><div class="workload-fill" style="width:${pct}%;">${item.count > 0 ? item.count : ''}</div></div>
+              <span class="workload-count">${item.count} việc</span>
+            </div>`;
+          }).join('')}</div>`;
+        grid2.appendChild(leftPanel);
+
+        // Category breakdown cho tuần này
+        const rightPanel = document.createElement('div');
+        rightPanel.className = 'dashboard-panel';
+        rightPanel.innerHTML = `<div class="panel-header"><div><h4 class="panel-title">🏷️ Cơ cấu theo Nhóm công việc</h4></div></div>
+          <div class="category-stat-list">${state.categories.map(cat => {
+            const cnt = weekTasks.filter(t => t.category_id === cat.id).length;
+            if (cnt === 0) return '';
+            return `<div class="category-stat-item" style="border-left-color:${cat.color};"><span class="category-stat-name">${cat.title}</span><span class="category-stat-count">${cnt} việc</span></div>`;
+          }).join('') || '<div style="padding:16px;text-align:center;color:var(--text-light);font-size:13px;">Chưa có công việc</div>'}</div>`;
+        grid2.appendChild(rightPanel);
+        body.appendChild(grid2);
+      }
+
+      // Bind toggle
+      weekSection.querySelector('.dashboard-week-header').addEventListener('click', () => {
+        state.expandedDashboardWeeks[weekOffset] = !state.expandedDashboardWeeks[weekOffset];
+        render();
+      });
+    });
+
     el.mainContent.appendChild(container);
   }
 
@@ -1667,7 +1808,7 @@
                 <div style="font-size:24px;margin-bottom:6px;">📭</div>
                 Chưa có công việc hoàn thành trong ${mode === 'week' ? 'tuần này' : 'danh sách'}
               </div>
-            ` : reportData.completed.map(t => renderReportTaskItem(t, 'completed', false)).join('')}
+            ` : renderWeekFramedTasks(reportData.completed, 'completed', false)}
           </div>
         </div>
 
@@ -1685,7 +1826,7 @@
                 <div style="font-size:24px;margin-bottom:6px;">🎉</div>
                 Tuyệt vời! Bạn không có công việc dang dở nào.
               </div>
-            ` : reportData.inProgress.map(t => renderReportTaskItem(t, 'inprogress', false)).join('')}
+            ` : renderWeekFramedTasks(reportData.inProgress, 'inprogress', false)}
           </div>
         </div>
       </div>
@@ -1875,7 +2016,7 @@
               </div>
               <div class="report-tasks-list">
                 ${completed.length === 0 ? '<div class="report-empty-placeholder">Chưa có công việc hoàn thành</div>' :
-                  completed.map(t => renderReportTaskItem(t, 'completed', true)).join('')}
+                  renderWeekFramedTasks(completed, 'completed', true)}
               </div>
             </div>
 
@@ -1889,13 +2030,75 @@
               </div>
               <div class="report-tasks-list">
                 ${inProgress.length === 0 ? '<div class="report-empty-placeholder">🎉 Không có công việc dang dở</div>' :
-                  inProgress.map(t => renderReportTaskItem(t, 'inprogress', true)).join('')}
+                  renderWeekFramedTasks(inProgress, 'inprogress', true)}
               </div>
             </div>
           </div>
         ` : ''}
       </div>
     `;
+  }
+
+  // ── Nhóm task theo tuần và render frame riêng ──
+  function getTaskWeekLabel(task) {
+    let taskDate = null;
+    if (task.status === 'completed' && task.completed_at) {
+      taskDate = new Date(task.completed_at);
+    } else if (task.created_at) {
+      taskDate = new Date(task.created_at);
+    } else if (task.deadline) {
+      taskDate = parseTaskDate(task.deadline);
+    }
+    if (!taskDate || isNaN(taskDate.getTime())) return { label: 'Tuần này', offset: 0 };
+    
+    const now = new Date();
+    const todayMonday = new Date(now);
+    const day = todayMonday.getDay();
+    todayMonday.setDate(todayMonday.getDate() - (day === 0 ? 6 : day - 1));
+    todayMonday.setHours(0, 0, 0, 0);
+    
+    const taskMonday = new Date(taskDate);
+    const taskDay = taskMonday.getDay();
+    taskMonday.setDate(taskMonday.getDate() - (taskDay === 0 ? 6 : taskDay - 1));
+    taskMonday.setHours(0, 0, 0, 0);
+    
+    const offset = Math.round((taskMonday - todayMonday) / (7 * 86400000));
+    if (offset === 0) return { label: 'Tuần này', offset: 0 };
+    if (offset === -1) return { label: 'Tuần trước', offset: -1 };
+    if (offset < -1) return { label: `${Math.abs(offset)} tuần trước`, offset };
+    return { label: `Tuần tới`, offset };
+  }
+
+  function renderWeekFramedTasks(tasks, statusMode, isLeaderView) {
+    // Nhóm theo tuần
+    const groups = {};
+    tasks.forEach(t => {
+      const wk = getTaskWeekLabel(t);
+      if (!groups[wk.offset]) groups[wk.offset] = { label: wk.label, tasks: [] };
+      groups[wk.offset].tasks.push(t);
+    });
+    const sortedOffsets = Object.keys(groups).map(Number).sort((a, b) => b - a);
+    
+    if (sortedOffsets.length <= 1) {
+      // Chỉ có 1 tuần, không cần frame
+      return tasks.map(t => renderReportTaskItem(t, statusMode, isLeaderView)).join('');
+    }
+    
+    return sortedOffsets.map(offset => {
+      const g = groups[offset];
+      const tagClass = offset === 0 ? 'rwf-tag-current' : 'rwf-tag-past';
+      return `
+        <div class="report-week-frame">
+          <div class="report-week-frame-header">
+            <span class="report-week-frame-icon">📅</span>
+            <span class="report-week-frame-label">${g.label}</span>
+            <span class="report-week-frame-tag ${tagClass}">${g.tasks.length} việc</span>
+          </div>
+          <div class="report-week-frame-body">
+            ${g.tasks.map(t => renderReportTaskItem(t, statusMode, isLeaderView)).join('')}
+          </div>
+        </div>`;
+    }).join('');
   }
 
   function renderReportTaskItem(task, statusMode, isLeaderView) {
@@ -1921,6 +2124,7 @@
           ${task.deadline ? `<span class="report-task-tag report-tag-deadline">📅 Hạn: ${formatFullDate(task.deadline)}</span>` : ''}
           ${completedDateText ? `<span class="report-task-tag report-tag-completed">✓ Xong: ${completedDateText}</span>` : ''}
           ${task.created_by === currentEmpId ? `<span class="report-task-tag" style="background:#f1f5f9;color:#475569;">✏️ Tự nhập</span>` : ''}
+          <span class="report-task-tag report-week-badge ${getTaskWeekLabel(task).offset === 0 ? 'rwb-current' : 'rwb-past'}">📅 ${getTaskWeekLabel(task).label}</span>
         </div>
         <div class="report-task-actions">
           ${!isLeaderView && !isCompleted ? `<button class="btn-report-action btn-report-complete" data-action="report-complete" data-task-id="${task.id}">✓ Hoàn thành</button>` : ''}
